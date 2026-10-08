@@ -1,0 +1,20 @@
+{
+  "name": "WMS Arenda ERP — Qurilish Uskunalari va Xizmatlar",
+  "short_name": "WMS Arenda",
+  "description": "Qurilish uskunalari ijarasi, ombor (WMS), dispecherlik va moliya boshqaruv platformasi",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#020617",
+  "theme_color": "#0f172a",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
