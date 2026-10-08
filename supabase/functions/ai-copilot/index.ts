@@ -54,23 +54,23 @@ async function buildContext(sb: ReturnType<typeof createClient>) {
   const lines: string[] = [];
   lines.push(`Bugungi sana: ${now.toISOString().slice(0, 10)}`);
   lines.push(`\n## Kassalar`);
-  regs.forEach(r => lines.push(`- ${r.name}: ${fmt(r.current_balance)} ${r.currency}${r.is_active ? "" : " (nofaol)"}`));
+  regs.forEach(r => lines.push(`- ${r.name}:${fmt(r.current_balance)} ${r.currency}${r.is_active ? "" : " (nofaol)"}`));
   lines.push(`Jami kassada: ${fmt(regs.reduce((s, r) => s + Number(r.current_balance || 0), 0))}`);
-  lines.push(`\n## Shu oy: tushum ${fmt(monthRevenue)}, xarajat ${fmt(monthExpenses)}, sof ${fmt(monthRevenue - monthExpenses)}`);
-  exps.slice(0, 20).forEach(e => lines.push(`- xarajat: ${e.title} (${e.category}) ${fmt(e.amount)} ${String(e.date).slice(0, 10)}`));
-  lines.push(`\n## Buyurtmalar (oxirgi ${ords.length}), faol ijarada: ${active.length}, kechikkan: ${overdue.length}`);
-  overdue.forEach(o => lines.push(`- KECHIKKAN ${o.order_number} ${o.customer_name} ${o.customer_phone ?? ""}, qaytarish: ${String(o.expected_return_date).slice(0, 10)}, qarz ${fmt(o.debt_amount)}`));
-  ords.slice(0, 40).forEach(o => lines.push(`- ${o.order_number} ${o.customer_name} [${o.status}] summa ${fmt(o.total_rent_amount)}, to'langan ${fmt(o.paid_amount)}, qarz ${fmt(o.debt_amount)}, qaytarish ${o.expected_return_date ? String(o.expected_return_date).slice(0, 10) : "-"}`));
+  lines.push(`\n## Shu oy: tushum ${fmt(monthRevenue)}, xarajat ${fmt(monthExpenses)}, sof${fmt(monthRevenue - monthExpenses)}`);
+  exps.slice(0, 20).forEach(e => lines.push(`- xarajat: ${e.title} (${e.category}) ${fmt(e.amount)}${String(e.date).slice(0, 10)}`));
+  lines.push(`\n## Buyurtmalar (oxirgi ${ords.length}), faol ijarada: ${active.length}, kechikkan:${overdue.length}`);
+  overdue.forEach(o => lines.push(`- KECHIKKAN ${o.order_number} ${o.customer_name}${o.customer_phone ?? ""}, qaytarish: ${String(o.expected_return_date).slice(0, 10)}, qarz${fmt(o.debt_amount)}`));
+  ords.slice(0, 40).forEach(o => lines.push(`- ${o.order_number} ${o.customer_name} [${o.status}] summa ${fmt(o.total_rent_amount)}, to'langan${fmt(o.paid_amount)}, qarz ${fmt(o.debt_amount)}, qaytarish${o.expected_return_date ? String(o.expected_return_date).slice(0, 10) : "-"}`));
   lines.push(`\n## Ombor (model: holat=soni). Holatlar: omborda_bosh=bo'sh, ijarada, tamirda, yoqolgan, sotildi`);
   Object.entries(stock).forEach(([name, s]) =>
-    lines.push(`- ${name}: ${Object.entries(s).map(([k, v]) => `${k}=${v}`).join(", ")}`));
+    lines.push(`- ${name}:${Object.entries(s).map(([k, v]) => `${k}=${v}`).join(", ")}`));
   lines.push(`\n## Qarzdor mijozlar`);
   custs.filter(c => Number(c.debt) > 0).slice(0, 30).forEach(c => lines.push(`- ${c.full_name} ${c.phone_primary ?? ""}: qarz ${fmt(c.debt)}`));
   lines.push(`Jami mijozlar: ${custs.length}`);
   lines.push(`\n## Hamkorlar`);
   (partners.data ?? []).forEach(p => lines.push(`- ${p.company_name} (${p.service_category}) ${p.phone_primary ?? ""} [${p.status}]`));
   lines.push(`\n## Xizmat buyurtmalari`);
-  (services.data ?? []).slice(0, 20).forEach(s => lines.push(`- ${s.order_number} ${s.customer_name} ${s.service_category} [${s.order_status}] narx ${fmt(s.customer_total_price)}, foyda ${fmt(s.net_profit)}`));
+  (services.data ?? []).slice(0, 20).forEach(s => lines.push(`- ${s.order_number}${s.customer_name} ${s.service_category} [${s.order_status}] narx ${fmt(s.customer_total_price)}, foyda${fmt(s.net_profit)}`));
 
   return {
     text: lines.join("\n"),
@@ -133,30 +133,4 @@ ${ctx.text}`;
     ];
 
     const geminiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: system }] },
-          contents,
-          generationConfig: { temperature: 0.3, maxOutputTokens: 1024 },
-        }),
-      },
-    );
-
-    if (!geminiRes.ok) {
-      console.error("Gemini error", geminiRes.status, await geminiRes.text());
-      return json({ error: `AI service error (${geminiRes.status})` }, 502);
-    }
-
-    const geminiData = await geminiRes.json();
-    const text = geminiData?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("").trim();
-    if (!text) return json({ error: "AI returned an empty response" }, 502);
-
-    return json({ response: text, metadata: ctx.metadata });
-  } catch (err) {
-    console.error(err);
-    return json({ error: err instanceof Error ? err.message : "Internal error" }, 500);
-  }
-});
+      `
