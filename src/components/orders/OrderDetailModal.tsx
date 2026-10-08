@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { CheckCircle2, CreditCard, Loader2, PackageCheck, Printer, Truck, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useApp } from '@/contexts/AppContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency, formatDate, getStatusColor } from '@/lib/format';
 import { Modal, ConfirmDialog } from '@/components/ui/Modal';
 import { LoadingSpinner } from '@/components/ui/States';
@@ -21,6 +22,9 @@ const SERVICE_STATUSES: ServiceOrderStatus[] = ['yangi', 'hamkor_qabul_qildi', '
 
 export function OrderDetailModal({ orderId, onClose, onChanged }: Props) {
   const { t } = useApp();
+  const { staff } = useAuth();
+  const canChangeStatus = staff?.role === 'admin' || staff?.role === 'manager' || staff?.role === 'warehouse';
+  const canManageServices = staff?.role === 'admin' || staff?.role === 'manager';
   const [bundle, setBundle] = useState<OrderBundle | null>(null);
   const [registers, setRegisters] = useState<CashRegister[]>([]);
   const [loading, setLoading] = useState(false);
@@ -169,13 +173,13 @@ export function OrderDetailModal({ orderId, onClose, onChanged }: Props) {
                       </div>
                       {closed ? (
                         <span className={`badge ${getStatusColor(s.order_status)}`}>{t(`svcStatus_${s.order_status}` as TranslationKey)}</span>
-                      ) : (
+                      ) : canManageServices ? (
                         <select value={s.order_status} disabled={busy}
                           onChange={e => run(() => supabase.rpc('erp_set_service_status', { p_service_id: s.id, p_status: e.target.value }))}
                           className="input-field !w-auto !py-1 text-xs">
                           {SERVICE_STATUSES.map(st => <option key={st} value={st}>{t(`svcStatus_${st}` as TranslationKey)}</option>)}
                         </select>
-                      )}
+                      ) : null}
                       <span className="text-sm font-semibold tabular-nums">{formatCurrency(s.customer_total_price)}</span>
                     </div>
                   );
@@ -236,7 +240,7 @@ export function OrderDetailModal({ orderId, onClose, onChanged }: Props) {
             {Number(order.debt_amount) > 0 && order.status !== 'bekor' && !payOpen && (
               <button onClick={() => setPayOpen(true)} className="btn-primary"><CreditCard className="h-4 w-4" /> {t('receivePayment')}</button>
             )}
-            {open && (
+            {open && canChangeStatus && (
               <>
                 {order.status === 'yangi' && bundle.items.length > 0 && (
                   <button onClick={() => setStatus('yigilmoqda')} disabled={busy} className="btn-secondary">{t('assembling')}</button>

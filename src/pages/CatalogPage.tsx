@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Plus, Pencil, Trash2, Package, Search, QrCode, Printer } from 'lucide-react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { Plus, Pencil, Trash2, Package, Search, QrCode, Printer, FileSpreadsheet, Upload, Download, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,11 +7,12 @@ import { formatCurrency } from '@/lib/format';
 import { canEditCatalog, canEditPrices, modelImageUrl, ordersErrorKey } from '@/lib/orders';
 import type { Label } from '@/lib/labels';
 import { LoadingSpinner, ErrorState, EmptyState, PageHeader } from '@/components/ui/States';
-import { ConfirmDialog } from '@/components/ui/Modal';
+import { Modal, ConfirmDialog } from '@/components/ui/Modal';
 import { PrintLabelsModal } from '@/components/ui/PrintLabelsModal';
 import { InlineNotice, type Notice } from '@/components/inbound/InlineNotice';
 import { ModelModal } from '@/components/catalog/ModelModal';
 import { modelLabel } from '@/components/catalog/modelForm';
+import { readFirstSheet, normalizeKeys, downloadProductsTemplate } from '@/lib/excel';
 import type { Category, ProductItemStatus, ProductModel } from '@/types';
 
 interface ModelWithCounts extends ProductModel {
@@ -35,6 +36,10 @@ export function CatalogPage({ initialSearch }: { initialSearch?: string }) {
   const [editing, setEditing] = useState<ProductModel | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProductModel | null>(null);
   const [printTargets, setPrintTargets] = useState<Label[] | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importMsg, setImportMsg] = useState('');
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const loadData = useCallback(async () => {
     const [modelsRes, itemsRes, catRes] = await Promise.all([
@@ -63,6 +68,35 @@ export function CatalogPage({ initialSearch }: { initialSearch?: string }) {
   const openAdd = () => { setEditing(null); setModalOpen(true); };
   const openEdit = (m: ProductModel) => { setEditing(m); setModalOpen(true); };
 
+  const handleImportProducts = async (file: File) => {
+    setImporting(true);
+    setImportMsg('');
+    try {
+      const raw = await readFirstSheet(file);
+      const rows = normalizeKeys(raw)
+        .filter((r) => (r.full_name ?? '').trim() !== '')
+        .map((r) => ({
+          name: (r.full_name ?? '').trim(),
+          brand: (r.brand ?? '').trim(),
+          category: (r.category ?? '').trim(),
+          model_code: (r.model_code ?? '').trim(),
+          daily_price: Math.max(0, Math.round(Number(r.daily_price) || 0)),
+          deposit_amount: Math.max(0, Math.round(Number(r.deposit) || 0)),
+        }));
+      let okCount = 0;
+      for (const row of rows) {
+        const { error: insErr } = await supabase.from('erp_product_models').insert(row);
+        if (!insErr) okCount += 1;
+      }
+      setImportMsg(`${t('productImported')}: ${okCount}${rows.length !== okCount ? ` (${t('skippedRows')}: ${rows.length - okCount})` : ''}`);
+      loadData();
+    } catch {
+      setImportMsg(t('errGeneric'));
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget) return;
     const { error: delError } = await supabase.from('erp_product_models').delete().eq('id', deleteTarget.id);
@@ -88,6 +122,9 @@ export function CatalogPage({ initialSearch }: { initialSearch?: string }) {
         title={t('equipmentCatalog')}
         action={
           <div className="flex gap-2">
+            {canPrice && (
+              <button onClick={() => { setImportOpen(true); setImportMsg(''); }} className="btn-secondary"><FileSpreadsheet className="h-4 w-4" /> <span className="hidden sm:inline">{t('importProducts')}</span></button>
+            )}
             {filtered.length > 0 && (
               <button onClick={() => setPrintTargets(filtered.map(modelLabel))} className="btn-secondary"><Printer className="h-4 w-4" /> <span className="hidden sm:inline">{t('catPrintModelQr')}</span></button>
             )}
@@ -127,7 +164,7 @@ export function CatalogPage({ initialSearch }: { initialSearch?: string }) {
             const img = modelImageUrl(m.image_url);
             return (
               <div key={m.id} className="card group overflow-hidden transition-shadow hover:shadow-lg">
-                <button onClick={() => openEdit(m)} className="relative block aspect-[4/3] w-full overflow-hidden bg-slate-50 dark:bg-slate-800/50">
+                <button onClick={() => (canEdit || canPrice) && openEdit(m)} className="relative block aspect-[4/3] w-full overflow-hidden bg-slate-50 dark:bg-slate-800/50" disabled={!canEdit && !canPrice}>
                   {img ? (
                     <img src={img} alt={m.name} loading="lazy" className="h-full w-full object-contain p-4 transition-transform duration-300 group-hover:scale-105" />
                   ) : (
@@ -183,6 +220,29 @@ export function CatalogPage({ initialSearch }: { initialSearch?: string }) {
       />
 
       <PrintLabelsModal labels={printTargets} onClose={() => setPrintTargets(null)} />
+
+      <Modal open={importOpen} onClose={() => setImportOpen(false)} title={t('importProducts')} size="md">
+        <div className="space-y-4">
+          <p className="text-sm text-slate-500 dark:text-slate-400">{t('importProductsHint')}</p>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={downloadProductsTemplate} className="btn-secondary"><Download className="h-4 w-4" /> {t('downloadTemplate')}</button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleImportProducts(f); e.target.value = ''; }}
+            />
+            <button onClick={() => fileRef.current?.click()} disabled={importing} className="btn-primary">
+              {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />} {t('chooseFile')}
+            </button>
+          </div>
+          {importMsg && <p className="rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:bg-slate-800/50 dark:text-slate-200">{importMsg}</p>}
+          <div className="flex justify-end">
+            <button onClick={() => setImportOpen(false)} className="btn-ghost">{t('close')}</button>
+          </div>
+        </div>
+      </Modal>
 
       <ConfirmDialog
         open={!!deleteTarget}

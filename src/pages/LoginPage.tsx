@@ -2,17 +2,12 @@ import { useState } from 'react';
 import { Building2, Loader2, Moon, Sun, Languages } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useApp } from '@/contexts/AppContext';
-import type { UserRole } from '@/types';
 
 export function LoginPage() {
-  const { signIn, signUp } = useAuth();
+  const { signIn } = useAuth();
   const { t, lang, setLang, theme, toggleTheme } = useApp();
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<UserRole>('admin');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -25,21 +20,10 @@ export function LoginPage() {
       return;
     }
 
-    if (mode === 'signup' && !fullName) {
-      setError(t('fillingFields'));
-      return;
-    }
-
     setLoading(true);
     try {
-      if (mode === 'login') {
-        const { error: signInError } = await signIn(email, password);
-        if (signInError) setError(signInError);
-      } else {
-        const { error: signUpError } = await signUp(email, password, fullName, phone, role);
-        if (signUpError) setError(signUpError);
-        else setError(t('signupSuccess'));
-      }
+      const { error: signInError } = await signIn(email, password);
+      if (signInError) setError(signInError);
     } catch {
       setError(t('loginError'));
     } finally {
@@ -75,65 +59,7 @@ export function LoginPage() {
         </div>
 
         <div className="card p-8">
-          <div className="mb-6 flex gap-2 rounded-lg bg-slate-100 p-1 dark:bg-slate-800">
-            <button
-              onClick={() => { setMode('login'); setError(''); }}
-              className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${
-                mode === 'login'
-                  ? 'bg-white text-blue-600 shadow-sm dark:bg-slate-700 dark:text-blue-300'
-                  : 'text-slate-500 dark:text-slate-400'
-              }`}
-            >
-              {t('login')}
-            </button>
-            <button
-              onClick={() => { setMode('signup'); setError(''); }}
-              className={`flex-1 rounded-md py-2 text-sm font-medium transition-all ${
-                mode === 'signup'
-                  ? 'bg-white text-blue-600 shadow-sm dark:bg-slate-700 dark:text-blue-300'
-                  : 'text-slate-500 dark:text-slate-400'
-              }`}
-            >
-              {t('signup')}
-            </button>
-          </div>
-
           <form onSubmit={handleSubmit} className="space-y-4">
-            {mode === 'signup' && (
-              <>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">{t('fullName')}</label>
-                  <input
-                    type="text"
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="input-field"
-                    placeholder="Aliyev Vali"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">{t('phone')}</label>
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    className="input-field"
-                    placeholder="+998 90 123-45-67"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">{t('role')}</label>
-                  <select value={role} onChange={(e) => setRole(e.target.value as UserRole)} className="input-field">
-                    <option value="admin">{t('admin')}</option>
-                    <option value="manager">{t('manager')}</option>
-                    <option value="seller">{t('seller')}</option>
-                    <option value="cashier">{t('cashier')}</option>
-                    <option value="warehouse">{t('warehouseWorker')}</option>
-                  </select>
-                </div>
-              </>
-            )}
-
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">{t('email')}</label>
               <input
@@ -164,19 +90,9 @@ export function LoginPage() {
 
             <button type="submit" disabled={loading} className="btn-primary w-full">
               {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {mode === 'login' ? t('signIn') : t('signUp')}
+              {t('signIn')}
             </button>
           </form>
-
-          <p className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
-            {mode === 'login' ? t('noAccount') : t('haveAccount')}{' '}
-            <button
-              onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); }}
-              className="font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400"
-            >
-              {mode === 'login' ? t('signUp') : t('signIn')}
-            </button>
-          </p>
         </div>
       </div>
     </div>

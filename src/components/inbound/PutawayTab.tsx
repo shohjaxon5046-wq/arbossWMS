@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { PackageOpen, Loader2, MapPin, Truck, CheckCircle2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useApp } from '@/contexts/AppContext';
@@ -6,9 +6,8 @@ import { inboundErrorKey } from '@/lib/inbound';
 import { formatDate } from '@/lib/format';
 import { EmptyState } from '@/components/ui/States';
 import { Modal } from '@/components/ui/Modal';
-import { ShelfPicker } from '@/components/inbound/ShelfPicker';
-import { InlineNotice, FieldLabel, type Notice } from '@/components/inbound/InlineNotice';
-import type { InboundData } from '@/types';
+import { FieldLabel, InlineNotice, type Notice } from '@/components/inbound/InlineNotice';
+import type { InboundData, ProductItem } from '@/types';
 
 interface Props {
   data: InboundData;
@@ -16,16 +15,16 @@ interface Props {
   reload: () => Promise<void>;
 }
 
+type Entry = { serial: string; locationId: string };
+
 export function PutawayTab({ data, canManage, reload }: Props) {
   const { t } = useApp();
   const [groupKey, setGroupKey] = useState<string | null>(null);
-  const [serial, setSerial] = useState('');
-  const [locationId, setLocationId] = useState('');
+  const [entries, setEntries] = useState<Record<string, Entry>>({});
+  const [bulkShelf, setBulkShelf] = useState('');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
-  const [doneCount, setDoneCount] = useState(0);
   const [notice, setNotice] = useState<Notice>(null);
-  const serialRef = useRef<HTMLInputElement>(null);
 
   const modelName = (id: string) => data.models.find(m => m.id === id)?.name ?? '—';
   const supplierName = (id: string | null) => (id ? data.suppliers.find(s => s.id === id)?.name : null) ?? '—';
@@ -41,39 +40,52 @@ export function PutawayTab({ data, canManage, reload }: Props) {
   }, [data]);
 
   const activeGroup = groups.find(g => g.key === groupKey);
-  const current = activeGroup?.items[0] ?? null;
 
   const open = (key: string) => {
-    setGroupKey(key);
-    setSerial('');
+    const group = groups.find(g => g.key === key);
+    if (!group) return;
+    const init: Record<string, Entry> = {};
+    group.items.forEach(i => { init[i.id] = { serial: '', locationId: '' }; });
+    setEntries(init);
+    setBulkShelf('');
     setFormError('');
-    setDoneCount(0);
+    setGroupKey(key);
   };
 
-  const close = () => {
-    if (doneCount > 0) setNotice({ kind: 'success', text: `${t('putawayDone')}: ${doneCount} ${t('pcs')}` });
-    setGroupKey(null);
+  const close = () => setGroupKey(null);
+
+  const setEntry = (itemId: string, patch: Partial<Entry>) =>
+    setEntries(prev => ({ ...prev, [itemId]: { ...prev[itemId], ...patch } }));
+
+  const applyBulkShelf = () => {
+    if (!bulkShelf) return;
+    setEntries(prev => {
+      const next = { ...prev };
+      for (const k of Object.keys(next)) next[k] = { ...next[k], locationId: bulkShelf };
+      return next;
+    });
   };
 
   const save = async () => {
-    if (!current) return;
-    const value = serial.trim();
-    if (!value) { setFormError(t('errSerialRequired')); return; }
-    if (!locationId) { setFormError(t('selectShelf')); return; }
-    if (data.items.some(i => i.id !== current.id && i.serial_number.toLowerCase() === value.toLowerCase())) {
-      setFormError(t('errDuplicateSerial'));
-      return;
-    }
+    if (!activeGroup) return;
+    const payload = activeGroup.items.map(i => ({
+      item_id: i.id,
+      serial: (entries[i.id]?.serial ?? '').trim(),
+      location_id: entries[i.id]?.locationId ?? '',
+    }));
+    if (payload.some(p => !p.serial)) { setFormError(t('errSerialRequired')); return; }
+    if (payload.some(p => !p.location_id)) { setFormError(t('selectShelf')); return; }
     setSaving(true);
-    const { error } = await supabase.rpc('erp_putaway_item', { p_item_id: current.id, p_serial: value, p_location_id: locationId });
+    setFormError('');
+    const { error } = await supabase.rpc('erp_putaway_batch', { p_entries: payload });
     setSaving(false);
     if (error) { setFormError(t(inboundErrorKey(error))); return; }
-    setDoneCount(c => c + 1);
-    setSerial('');
-    setFormError('');
+    setNotice({ kind: 'success', text: `${t('putawayDone')}: ${payload.length} ${t('pcs')}` });
+    setGroupKey(null);
     await reload();
-    serialRef.current?.focus();
   };
+
+  const activeLocations = data.locations.filter(l => l.is_active);
 
   return (
     <div className="space-y-4">
@@ -110,46 +122,54 @@ export function PutawayTab({ data, canManage, reload }: Props) {
         </div>
       )}
 
-      <Modal open={!!groupKey} onClose={close} title={t('putawayTitle')} size="md">
-        {current ? (
+      <Modal open={!!activeGroup} onClose={close} title={t('putawayBatchTitle')} size="lg">
+        {activeGroup && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between rounded-xl bg-slate-50 p-4 dark:bg-slate-800/50">
-              <div className="min-w-0">
-                <p className="truncate font-semibold text-slate-900 dark:text-slate-100">{modelName(current.model_id)}</p>
-                <p className="text-xs text-slate-500">{supplierName(current.supplier_id)}</p>
-              </div>
-              <div className="text-right text-xs text-slate-500">
-                <p>{t('remaining')}</p>
-                <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{activeGroup?.items.length ?? 0}</p>
+            <p className="text-sm leading-relaxed text-slate-500 dark:text-slate-400">{t('putawayBatchHint')}</p>
+
+            <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/50">
+              <FieldLabel>{t('shelf')} ({t('all')})</FieldLabel>
+              <div className="flex gap-2">
+                <select value={bulkShelf} onChange={e => setBulkShelf(e.target.value)} className="input-field font-mono">
+                  <option value="">{t('selectShelf')}</option>
+                  {activeLocations.map(l => <option key={l.id} value={l.id}>{l.code}</option>)}
+                </select>
+                <button onClick={applyBulkShelf} className="btn-secondary flex-shrink-0">{t('use')}</button>
               </div>
             </div>
-            {doneCount > 0 && (
-              <p className="flex items-center gap-1.5 text-sm text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="h-4 w-4" /> {t('putawayDone')}: {doneCount} {t('pcs')}</p>
-            )}
-            <div>
-              <FieldLabel>{t('serialNumber')} *</FieldLabel>
-              <input
-                ref={serialRef}
-                autoFocus
-                value={serial}
-                onChange={e => setSerial(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); save(); } }}
-                placeholder={t('enterSerial')}
-                className="input-field font-mono"
-              />
+
+            <div className="space-y-2">
+              {activeGroup.items.map((i: ProductItem, idx: number) => {
+                const e = entries[i.id];
+                return (
+                  <div key={i.id} className="flex items-center gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+                    <span className="flex-shrink-0 text-xs font-bold text-slate-400">{idx + 1}</span>
+                    <div className="w-52 flex-shrink-0">
+                      <p className="truncate text-xs font-medium text-slate-700 dark:text-slate-300">{modelName(i.model_id)}</p>
+                    </div>
+                    <input
+                      value={e?.serial ?? ''}
+                      onChange={ev => setEntry(i.id, { serial: ev.target.value })}
+                      placeholder={t('putawaySerial')}
+                      className="input-field font-mono"
+                    />
+                    <select value={e?.locationId ?? ''} onChange={ev => setEntry(i.id, { locationId: ev.target.value })} className="input-field w-40 font-mono">
+                      <option value="">{t('putawayShelf')}</option>
+                      {activeLocations.map(l => <option key={l.id} value={l.id}>{l.code}</option>)}
+                    </select>
+                  </div>
+                );
+              })}
             </div>
-            <ShelfPicker locations={data.locations} value={locationId} onChange={setLocationId} />
+
             {formError && <InlineNotice notice={{ kind: 'error', text: formError }} onClose={() => setFormError('')} />}
             <div className="flex justify-end gap-3 pt-2">
               <button onClick={close} className="btn-ghost">{t('close')}</button>
-              <button onClick={save} disabled={saving} className="btn-primary">{saving && <Loader2 className="h-4 w-4 animate-spin" />}{t('putawayNext')}</button>
+              <button onClick={save} disabled={saving} className="btn-primary">
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                {t('putawayBatchSave')} ({activeGroup.items.length})
+              </button>
             </div>
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-3 py-8 text-center">
-            <CheckCircle2 className="h-12 w-12 text-emerald-500" />
-            <p className="font-medium text-slate-900 dark:text-slate-100">{t('putawayDone')}: {doneCount} {t('pcs')}</p>
-            <button onClick={close} className="btn-primary">{t('close')}</button>
           </div>
         )}
       </Modal>

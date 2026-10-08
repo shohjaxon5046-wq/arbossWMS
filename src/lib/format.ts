@@ -39,6 +39,14 @@ export function normalizePhone(phone: string): string {
   return phone;
 }
 
+export function normalizePhoneInput(phone: string): string {
+  const clean = phone.replace(/\D/g, '');
+  if (!clean) return '';
+  if (clean.length === 9) return `+998${clean}`;
+  if (clean.length === 12 && clean.startsWith('998')) return `+${clean}`;
+  return clean;
+}
+
 export function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
     yangi: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',

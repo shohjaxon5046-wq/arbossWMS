@@ -6,6 +6,7 @@ import {
   sellerRanking, stockReport, todayPayments,
 } from "./reports.ts";
 import { handleCallback, notifyOrder, partnerJobs, warehouseQueue } from "./jobs.ts";
+import { clearDraft, handleDraftStep, loadDraft, startOrderDraft } from "./draft.ts";
 
 type Staff = Extract<Actor, { type: "staff" }>;
 type MenuItem = { text: string; roles: string[]; run: (sb: Sb, a: Actor) => Promise<unknown> };
@@ -26,6 +27,7 @@ const MENU: MenuItem[] = [
   { text: "Yig'ish kerak", roles: ["warehouse", ...ADMIN], run: (sb, a) => warehouseQueue(sb, a.chatId) },
   { text: "Joylashtirish kutilmoqda", roles: ["warehouse", ...ADMIN], run: reply(sb => putawayList(sb)) },
   { text: "Ombor qoldig'i", roles: ["seller", "warehouse", ...ADMIN], run: reply(sb => stockReport(sb)) },
+  { text: "Buyurtma berish", roles: ["seller", ...ADMIN], run: (sb, a) => startOrderDraft(sb, a as Staff) },
   {
     text: "Mijoz qidirish", roles: SEARCH_ROLES,
     run: (_sb, a) => send(a.chatId, "Mijozning telefon raqamini yoki ismini yozing."),
@@ -112,6 +114,7 @@ async function handleMessage(sb: Sb, msg: Msg) {
   if (text === "Chiqish") {
     await log(sb, chatId, actor, "logout");
     await unlinkChat(sb, chatId);
+    await clearDraft(sb, chatId);
     return send(chatId, "Siz tizimdan chiqdingiz. Qayta kirish: /start", { reply_markup: { remove_keyboard: true } });
   }
   const role = roleOf(actor);
@@ -120,6 +123,13 @@ async function handleMessage(sb: Sb, msg: Msg) {
     if (!item.roles.includes(role)) return send(chatId, "Bu bo'lim sizning lavozimingiz uchun yopiq.");
     await log(sb, chatId, actor, "menu", { item: item.text });
     return item.run(sb, actor);
+  }
+  if (actor.type === "staff") {
+    const draft = await loadDraft(sb, chatId);
+    if (draft) {
+      const handled = await handleDraftStep(sb, actor, text);
+      if (handled) return;
+    }
   }
   if (SEARCH_ROLES.includes(role)) {
     await log(sb, chatId, actor, "customer_search", { query: text.slice(0, 40) });

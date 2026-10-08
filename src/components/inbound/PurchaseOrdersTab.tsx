@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, ClipboardList, Loader2, Send, Ban, PackageCheck, Search, CalendarDays } from 'lucide-react';
+import { Plus, Trash2, ClipboardList, Loader2, Send, Ban, PackageCheck, Search, CalendarDays, PackageSearch } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,7 +8,8 @@ import { formatCurrency, formatDate, getStatusColor } from '@/lib/format';
 import { EmptyState } from '@/components/ui/States';
 import { Modal, ConfirmDialog } from '@/components/ui/Modal';
 import { InlineNotice, FieldLabel, type Notice } from '@/components/inbound/InlineNotice';
-import type { InboundData, PurchaseOrder } from '@/types';
+import { ProductSearchModal } from '@/components/inbound/ProductSearchModal';
+import type { InboundData, ProductModel, PurchaseOrder } from '@/types';
 import type { TranslationKey } from '@/lib/i18n';
 
 interface Props {
@@ -34,6 +35,7 @@ export function PurchaseOrdersTab({ data, canManage, reload, onGoToReceiving }: 
   const [detailId, setDetailId] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<PurchaseOrder | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const supplierName = (id: string) => data.suppliers.find(s => s.id === id)?.name ?? '—';
   const modelName = (id: string) => data.models.find(m => m.id === id)?.name ?? '—';
@@ -48,6 +50,16 @@ export function PurchaseOrdersTab({ data, canManage, reload, onGoToReceiving }: 
 
   const updateLine = (idx: number, patch: Partial<LineDraft>) =>
     setLines(prev => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)));
+
+  const addModel = (m: ProductModel) => {
+    setLines(prev => {
+      const emptyIdx = prev.findIndex(l => !l.model_id);
+      const line: LineDraft = { model_id: m.id, quantity: '1', unit_price: m.daily_price ? String(m.daily_price) : '' };
+      if (emptyIdx >= 0) return prev.map((l, i) => (i === emptyIdx ? line : l));
+      return [...prev, line];
+    });
+    setPickerOpen(false);
+  };
 
   const create = async () => {
     const valid = lines
@@ -155,7 +167,7 @@ export function PurchaseOrdersTab({ data, canManage, reload, onGoToReceiving }: 
         </div>
       )}
 
-      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title={t('newPurchaseOrder')} size="lg">
+      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title={t('newPurchaseOrder')} size="xl">
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
@@ -171,7 +183,12 @@ export function PurchaseOrdersTab({ data, canManage, reload, onGoToReceiving }: 
           </div>
 
           <div>
-            <FieldLabel>{t('orderLines')} *</FieldLabel>
+            <div className="mb-2 flex items-center justify-between">
+              <FieldLabel>{t('orderLines')} *</FieldLabel>
+              <button onClick={() => setPickerOpen(true)} className="btn-secondary px-3 py-1.5 text-sm">
+                <PackageSearch className="h-4 w-4" /> {t('addProduct')}
+              </button>
+            </div>
             <div className="space-y-2">
               {lines.map((l, idx) => (
                 <div key={idx} className="grid grid-cols-[1fr_72px_auto] gap-2 rounded-lg border border-slate-200 p-2 dark:border-slate-800 sm:grid-cols-[1fr_88px_128px_auto]">
@@ -201,6 +218,8 @@ export function PurchaseOrdersTab({ data, canManage, reload, onGoToReceiving }: 
           </div>
         </div>
       </Modal>
+
+      <ProductSearchModal open={pickerOpen} models={data.models} onClose={() => setPickerOpen(false)} onPick={addModel} />
 
       <Modal open={!!detail} onClose={() => setDetailId(null)} title={detail ? `${t('poNumber')}: ${detail.po_number}` : ''} size="lg">
         {detail && (() => {

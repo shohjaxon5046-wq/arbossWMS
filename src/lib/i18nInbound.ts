@@ -23,6 +23,10 @@ const uz = {
 
   newPurchaseOrder: 'Yangi buyurtma',
   poNumber: 'Buyurtma raqami',
+  addProduct: 'Mahsulot qo\'shish',
+  noProducts: 'Hech narsa tanlanmadi',
+  searchProducts: 'Mahsulotni qidirish va tanlash',
+
   expectedDate: 'Kutilayotgan sana',
   orderLines: 'Buyurtma qilinadigan uskunalar',
   addLine: 'Qator qo\'shish',
@@ -69,6 +73,11 @@ const uz = {
   scan: 'Skanerlash',
   putawayDone: 'Polkaga joylandi',
   putawayNext: 'Saqlash va keyingisi',
+  putawayBatchTitle: 'Kirimni joylashtirish',
+  putawayBatchHint: 'Ro\'yxatdagi har bir uskunaga seriya raqami bering va polkani tanlang. Bitta amalda hammasi joylanadi.',
+  putawayBatchSave: 'Hammasini joylashtirish',
+  putawaySerial: 'Seriya',
+  putawayShelf: 'Polka',
 
   scannerTitle: 'QR kodni skanerlash',
   scannerHint: 'Kamerani QR kodga qarating. Qo\'l skaneri bo\'lsa, shunchaki skanerlang.',
@@ -159,6 +168,9 @@ const ru: Record<keyof typeof uz, string> = {
 
   newPurchaseOrder: 'Новый заказ',
   poNumber: 'Номер заказа',
+  addProduct: 'Добавить товар',
+  noProducts: 'Ничего не выбрано',
+  searchProducts: 'Поиск и выбор товара',
   expectedDate: 'Ожидаемая дата',
   orderLines: 'Заказываемая техника',
   addLine: 'Добавить строку',
@@ -205,6 +217,11 @@ const ru: Record<keyof typeof uz, string> = {
   scan: 'Сканировать',
   putawayDone: 'Размещено на полку',
   putawayNext: 'Сохранить и следующий',
+  putawayBatchTitle: 'Размещение приёмки',
+  putawayBatchHint: 'Укажите серийный номер и полку для каждой единицы. Всё разместится одним действием.',
+  putawayBatchSave: 'Разместить всё',
+  putawaySerial: 'Серийный',
+  putawayShelf: 'Полка',
 
   scannerTitle: 'Сканирование QR-кода',
   scannerHint: 'Наведите камеру на QR-код. Если есть ручной сканер — просто отсканируйте.',

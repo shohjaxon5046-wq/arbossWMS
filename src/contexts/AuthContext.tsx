@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import type { Staff, UserRole } from '@/types';
+import type { Staff } from '@/types';
 
 interface AuthContextValue {
   session: Session | null;
@@ -9,7 +9,6 @@ interface AuthContextValue {
   staff: Staff | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signUp: (email: string, password: string, fullName: string, phone: string, role: UserRole) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
 }
 
@@ -68,40 +67,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null };
   }
 
-  async function signUp(
-    email: string,
-    password: string,
-    fullName: string,
-    phone: string,
-    role: UserRole
-  ): Promise<{ error: string | null }> {
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    if (error) return { error: error.message };
-
-    if (data.user) {
-      const { error: staffError } = await supabase.from('erp_staff').insert({
-        user_id: data.user.id,
-        full_name: fullName,
-        phone,
-        email,
-        role,
-        is_active: true,
-      });
-      if (staffError) {
-        console.error('Staff creation error:', staffError);
-        return { error: staffError.message };
-      }
-    }
-    return { error: null };
-  }
-
   async function signOut() {
     await supabase.auth.signOut();
     setStaff(null);
   }
 
   return (
-    <AuthContext.Provider value={{ session, user, staff, loading, signIn, signUp, signOut }}>
+    <AuthContext.Provider value={{ session, user, staff, loading, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
