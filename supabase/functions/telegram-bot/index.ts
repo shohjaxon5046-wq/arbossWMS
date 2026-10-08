@@ -5,7 +5,7 @@ import {
   customerSearch, dailyEveningReport, debtorsReport, myOrders, myRevenue, overdueReport, putawayList, revenueReport,
   sellerRanking, stockReport, todayPayments,
 } from "./reports.ts";
-import { handleCallback, notifyOrder, partnerJobs, warehouseQueue } from "./jobs.ts";
+import { handleCallback, notifyOrder, notifyLogisticsOrder, partnerJobs, warehouseQueue } from "./jobs.ts";
 import { clearDraft, handleDraftStep, loadDraft, startOrderDraft } from "./draft.ts";
 
 type Staff = Extract<Actor, { type: "staff" }>;
@@ -242,6 +242,11 @@ Deno.serve(async (req: Request) => {
       if (typeof body.order_id !== "string" || !UUID.test(body.order_id)) return json({ error: "Invalid order" }, 400);
       if (!botToken()) return json({ ok: true, sent: 0 });
       return json({ ok: true, ...(await notifyOrder(sb, body.order_id, staff)) });
+    }
+    if (action === "notify_logistics_order") {
+      if (typeof body.order_id !== "string" || !UUID.test(body.order_id)) return json({ error: "Invalid order" }, 400);
+      if (!botToken()) return json({ ok: true, sent: 0 });
+      return json({ ok: true, ...(await notifyLogisticsOrder(sb, body.order_id)) });
     }
     if (!ADMIN.includes(staff.role)) return json({ error: "Forbidden" }, 403);
     if (action === "status") return await status(sb);

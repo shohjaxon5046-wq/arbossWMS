@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import {
   LayoutDashboard, PackageCheck, QrCode, Package, Users, Truck, ShoppingCart,
-  UserCircle, Wallet, Bot, Settings as SettingsIcon, Building2,
+  UserCircle, Wallet, Bot, Settings as SettingsIcon, Building2, ClipboardList, PackageOpen,
   Moon, Sun, Languages, LogOut, Menu, X,
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
@@ -12,7 +12,8 @@ import type { TranslationKey } from '@/lib/i18n';
 
 export type PageId =
   | 'dashboard' | 'inbound' | 'locations' | 'catalog' | 'staff' | 'partners'
-  | 'orders' | 'crm' | 'finance' | 'ai' | 'settings';
+  | 'orders' | 'crm' | 'finance' | 'ai' | 'settings'
+  | 'new-order' | 'my-orders' | 'logistics';
 
 interface NavItem {
   id: PageId;
@@ -32,6 +33,9 @@ const navItems: NavItem[] = [
   { id: 'finance', labelKey: 'finance', icon: Wallet, roles: ['admin', 'manager', 'cashier'] },
   { id: 'staff', labelKey: 'staff', icon: Users, roles: ['admin'] },
   { id: 'ai', labelKey: 'aiCopilot', icon: Bot, roles: ['admin', 'manager', 'seller'] },
+  { id: 'new-order', labelKey: 'newOrder', icon: ClipboardList, roles: ['admin', 'manager', 'seller'] },
+  { id: 'my-orders', labelKey: 'myOrders', icon: PackageOpen, roles: ['seller'] },
+  { id: 'logistics', labelKey: 'loOrders', icon: Truck, roles: ['admin', 'manager'] },
   { id: 'settings', labelKey: 'settings', icon: SettingsIcon, roles: ['admin', 'manager'] },
 ];
 

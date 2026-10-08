@@ -1,5 +1,5 @@
 import {
-  type Actor, type Button, type Sb, esc, fmtDate, inline, log, ORDER_STATUS, send, SERVICE_CATEGORY,
+  type Actor, type Button, type Sb, esc, fmtDate, inline, log, money, ORDER_STATUS, send, SERVICE_CATEGORY,
   SERVICE_STATUS, tg,
 } from "./lib.ts";
 
@@ -114,6 +114,49 @@ async function notifyService(sb: Sb, serviceId: string) {
   if (!p?.telegram_chat_id) return false;
   const r = await send(p.telegram_chat_id, `Sizga yangi buyurtma!\n\n${card.text}`, inline(card.buttons));
   return r.ok;
+}
+
+const LOGISTICS_SERVICE: Record<string, string> = {
+  gruzchik: "Gruzchik",
+  kran: "Kran va texnika",
+  musir: "Musir (chiqindi olib ketish)",
+};
+
+const LOGISTICS_STATUS: Record<string, string> = {
+  yangi: "Yangi",
+  jarayonda: "Jarayonda",
+  bajarildi: "Bajarildi",
+  bekor: "Bekor qilingan",
+};
+
+export async function notifyLogisticsOrder(sb: Sb, orderId: string) {
+  const { data: o } = await sb.from("logistics_orders")
+    .select("id, order_number, service, customer_name, customer_phone, address, datetime, note, estimated_price, seller_name")
+    .eq("id", orderId)
+    .maybeSingle();
+  if (!o) return { sent: 0 };
+
+  const text = [
+    `<b>Yangi logistika buyurtmasi ${esc(o.order_number)}</b>`,
+    `Xizmat: ${LOGISTICS_SERVICE[o.service] ?? o.service}`,
+    `Mijoz: ${esc(o.customer_name)}`,
+    o.customer_phone ? `Tel: ${esc(o.customer_phone)}` : "",
+    `Manzil: ${esc(o.address || "—")}`,
+    o.datetime ? `Vaqt: ${fmtDate(o.datetime)}` : "",
+    o.note ? `Izoh: ${esc(o.note)}` : "",
+    `Narx: <b>${money(o.estimated_price)}</b>`,
+    `Sotuvchi: ${esc(o.seller_name || "—")}`,
+  ].filter(Boolean).join("\n");
+
+  const { data: admins } = await sb.from("erp_staff").select("telegram_chat_id")
+    .in("role", ["admin", "manager"]).eq("is_active", true).not("telegram_chat_id", "is", null);
+  let sent = 0;
+  for (const a of admins ?? []) {
+    const r = await send(a.telegram_chat_id, `Yangi logistika buyurtmasi!\n\n${text}`);
+    if (r.ok) sent++;
+  }
+  await log(sb, "web", null, "notify_logistics_order", { order_id: orderId, sent });
+  return { sent };
 }
 
 export async function warehouseQueue(sb: Sb, chatId: string) {

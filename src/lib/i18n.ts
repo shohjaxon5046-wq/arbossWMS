@@ -3,12 +3,14 @@ export type Lang = 'uz' | 'ru';
 import { inboundTranslations } from '@/lib/i18nInbound';
 import { ordersTranslations } from '@/lib/i18nOrders';
 import { telegramTranslations } from '@/lib/i18nTelegram';
+import { logisticsTranslations } from '@/lib/i18nLogistics';
 
 export const translations = {
   uz: {
     ...inboundTranslations.uz,
     ...ordersTranslations.uz,
     ...telegramTranslations.uz,
+    ...logisticsTranslations.uz,
     // App
     appName: 'WMS Arenda ERP',
     appTagline: 'Qurilish Uskunalari va Xizmatlar',
@@ -321,6 +323,7 @@ export const translations = {
     ...inboundTranslations.ru,
     ...ordersTranslations.ru,
     ...telegramTranslations.ru,
+    ...logisticsTranslations.ru,
     // App
     appName: 'WMS Arenda ERP',
     appTagline: 'Строительная техника и услуги',

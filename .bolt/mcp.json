@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "granola": {
+      "enabled": true
+    },
+    "notion": {
+      "enabled": true
+    }
+  }
+}
