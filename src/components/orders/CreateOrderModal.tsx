@@ -11,6 +11,7 @@ import { EquipmentPicker } from '@/components/orders/EquipmentPicker';
 import { ServiceLinesEditor, type ServiceLine } from '@/components/orders/ServiceLinesEditor';
 import { loadOrderBundle, ordersErrorKey, rentLineTotal } from '@/lib/orders';
 import { printOrderReceipt } from '@/lib/receipt';
+import { callTelegramBot } from '@/lib/telegram';
 import type { CashRegister, Customer, ProductItem, ProductModel, ServicePartner } from '@/types';
 
 interface Props {
@@ -128,6 +129,7 @@ export function CreateOrderModal({ open, onClose, onCreated }: Props) {
       if (error) throw error;
       const orderId = (data as { id?: string } | null)?.id;
       if (!orderId) throw new Error('NO_ID');
+      callTelegramBot('notify_order', { order_id: orderId }).catch(() => {});
       if (print) {
         try {
           await printOrderReceipt(await loadOrderBundle(orderId), t);

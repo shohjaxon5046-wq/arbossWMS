@@ -1,2 +1,5 @@
 [functions.ai-copilot]
 verify_jwt = true
+
+[functions.telegram-bot]
+verify_jwt = false

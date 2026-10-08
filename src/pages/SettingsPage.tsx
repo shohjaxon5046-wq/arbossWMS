@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoadingSpinner, ErrorState, PageHeader } from '@/components/ui/States';
+import { TelegramBotCard } from '@/components/settings/TelegramBotCard';
 
 export function SettingsPage() {
   const { t, lang, setLang, theme, toggleTheme } = useApp();
@@ -122,6 +123,8 @@ export function SettingsPage() {
             </div>
           </div>
         </div>
+
+        {(staff?.role === 'admin' || staff?.role === 'manager') && <TelegramBotCard isAdmin={staff.role === 'admin'} />}
 
         {/* Profile */}
         <div className="card p-6 lg:col-span-2">
