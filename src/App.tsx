@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AppProvider } from '@/contexts/AppContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { LoginPage } from '@/pages/LoginPage';
@@ -19,9 +19,19 @@ import { MyOrdersPage } from '@/pages/MyOrdersPage';
 import { LoadingSpinner } from '@/components/ui/States';
 
 function AppContent() {
-  const { session, loading } = useAuth();
-  const [currentPage, setCurrentPage] = useState<PageId>('dashboard');
+  const { session, staff, loading } = useAuth();
+  
+  // Set default page based on role
+  const defaultPage = staff?.role === 'seller' ? 'catalog' : 'dashboard';
+  const [currentPage, setCurrentPage] = useState<PageId>('dashboard'); // we will sync this in useEffect
+
   const [seed, setSeed] = useState<SearchTarget & { nonce: number } | null>(null);
+
+  useEffect(() => {
+    if (staff) {
+      setCurrentPage(staff.role === 'seller' ? 'my-orders' : 'dashboard');
+    }
+  }, [staff]);
 
   const goToPage = (page: PageId) => {
     setSeed(null);

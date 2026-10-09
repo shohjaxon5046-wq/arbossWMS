@@ -23,17 +23,17 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { id: 'dashboard', labelKey: 'dashboard', icon: LayoutDashboard, roles: ['admin', 'manager', 'seller', 'cashier', 'warehouse'] },
+  { id: 'dashboard', labelKey: 'dashboard', icon: LayoutDashboard, roles: ['admin', 'manager', 'cashier', 'warehouse'] },
   { id: 'inbound', labelKey: 'inbound', icon: PackageCheck, roles: ['admin', 'manager', 'warehouse'] },
   { id: 'locations', labelKey: 'locations', icon: QrCode, roles: ['admin', 'manager', 'warehouse'] },
   { id: 'catalog', labelKey: 'catalog', icon: Package, roles: ['admin', 'manager', 'seller', 'warehouse'] },
   { id: 'orders', labelKey: 'orders', icon: ShoppingCart, roles: ['admin', 'manager', 'seller', 'cashier'] },
-  { id: 'crm', labelKey: 'crm', icon: UserCircle, roles: ['admin', 'manager', 'seller'] },
-  { id: 'partners', labelKey: 'partners', icon: Truck, roles: ['admin', 'manager', 'seller'] },
+  { id: 'crm', labelKey: 'crm', icon: UserCircle, roles: ['admin', 'manager'] },
+  { id: 'partners', labelKey: 'partners', icon: Truck, roles: ['admin', 'manager'] },
   { id: 'finance', labelKey: 'finance', icon: Wallet, roles: ['admin', 'manager', 'cashier'] },
   { id: 'staff', labelKey: 'staff', icon: Users, roles: ['admin'] },
-  { id: 'ai', labelKey: 'aiCopilot', icon: Bot, roles: ['admin', 'manager', 'seller'] },
-  { id: 'my-orders', labelKey: 'myOrders', icon: PackageOpen, roles: ['seller'] },
+  { id: 'ai', labelKey: 'aiCopilot', icon: Bot, roles: ['admin', 'manager'] },
+  { id: 'my-orders', labelKey: 'myOrders', icon: UserCircle, roles: ['seller'] },
   { id: 'settings', labelKey: 'settings', icon: SettingsIcon, roles: ['admin', 'manager'] },
 ];
 

@@ -15,6 +15,7 @@ export function SettingsPage() {
   const [companyName, setCompanyName] = useState('WMS Arenda ERP');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [rates, setRates] = useState({ uskuna: 0, kran: 0, musir: 0, gruzchik: 0 });
 
   const loadData = useCallback(async () => {
     try {
@@ -24,6 +25,7 @@ export function SettingsPage() {
           if (s.key === 'company_name') setCompanyName(s.value?.name || 'WMS Arenda ERP');
           if (s.key === 'company_phone') setPhone(s.value?.phone || '');
           if (s.key === 'company_address') setAddress(s.value?.address || '');
+          if (s.key === 'commission_rates') setRates(s.value as any || { uskuna: 0, kran: 0, musir: 0, gruzchik: 0 });
         }
       }
     } catch {
@@ -41,6 +43,7 @@ export function SettingsPage() {
         { key: 'company_name', value: { name: companyName } },
         { key: 'company_phone', value: { phone } },
         { key: 'company_address', value: { address } },
+        { key: 'commission_rates', value: rates },
       ];
       for (const s of settings) {
         await supabase.from('erp_settings').upsert(s, { onConflict: 'key' });
@@ -126,6 +129,30 @@ export function SettingsPage() {
 
         {(staff?.role === 'admin' || staff?.role === 'manager') && <TelegramBotCard isAdmin={staff.role === 'admin'} />}
 
+        {/* Commission Rates */}
+        {staff?.role === 'admin' && (
+          <div className="card p-6">
+            <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">Sotuvchilar uchun bonus foizlari (%)</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Uskuna ijarasi (%)</label>
+                <input type="number" min="0" max="100" value={rates.uskuna} onChange={e => setRates(r => ({ ...r, uskuna: Number(e.target.value) }))} className="input-field" />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Kran xizmati (%)</label>
+                <input type="number" min="0" max="100" value={rates.kran} onChange={e => setRates(r => ({ ...r, kran: Number(e.target.value) }))} className="input-field" />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Chiqindi (Musor) (%)</label>
+                <input type="number" min="0" max="100" value={rates.musir} onChange={e => setRates(r => ({ ...r, musir: Number(e.target.value) }))} className="input-field" />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-700 dark:text-slate-300">Gruzchik (%)</label>
+                <input type="number" min="0" max="100" value={rates.gruzchik} onChange={e => setRates(r => ({ ...r, gruzchik: Number(e.target.value) }))} className="input-field" />
+              </div>
+            </div>
+          </div>
+        )}
         {/* Profile */}
         <div className="card p-6 lg:col-span-2">
           <h3 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">{t('profile')}</h3>
