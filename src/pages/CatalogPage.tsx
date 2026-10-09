@@ -32,6 +32,7 @@ export function CatalogPage({ initialSearch }: { initialSearch?: string }) {
   const [notice, setNotice] = useState<Notice>(null);
   const [search, setSearch] = useState(initialSearch ?? '');
   const [categoryFilter, setCategoryFilter] = useState('');
+  const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available' | 'rented' | 'empty'>('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<ProductModel | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProductModel | null>(null);
@@ -109,6 +110,9 @@ export function CatalogPage({ initialSearch }: { initialSearch?: string }) {
 
   const filtered = models.filter(m => {
     if (categoryFilter && m.category !== categoryFilter) return false;
+    if (availabilityFilter === 'available' && m.available_units === 0) return false;
+    if (availabilityFilter === 'rented' && m.total_units - m.available_units === 0) return false;
+    if (availabilityFilter === 'empty' && m.total_units > 0) return false;
     const q = search.toLowerCase();
     return [m.name, m.brand, m.category, m.model_code].some(v => (v ?? '').toLowerCase().includes(q));
   });
@@ -136,9 +140,21 @@ export function CatalogPage({ initialSearch }: { initialSearch?: string }) {
       {notice && <InlineNotice notice={notice} onClose={() => setNotice(null)} />}
 
       <div className="space-y-3">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={t('search')} className="input-field pl-9" />
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder={t('search')} className="input-field pl-9" />
+          </div>
+          <select 
+            value={availabilityFilter} 
+            onChange={e => setAvailabilityFilter(e.target.value as any)}
+            className="input-field sm:max-w-[200px] text-sm"
+          >
+            <option value="all">Barcha holatlar</option>
+            <option value="available">Omborda bo'shlari bor</option>
+            <option value="rented">Ijaradagilari bor</option>
+            <option value="empty">Hali sotib olinmagan (0 ta)</option>
+          </select>
         </div>
         {usedCategories.length > 1 && (
           <div className="flex flex-wrap gap-2">
