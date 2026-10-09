@@ -33,9 +33,7 @@ const navItems: NavItem[] = [
   { id: 'finance', labelKey: 'finance', icon: Wallet, roles: ['admin', 'manager', 'cashier'] },
   { id: 'staff', labelKey: 'staff', icon: Users, roles: ['admin'] },
   { id: 'ai', labelKey: 'aiCopilot', icon: Bot, roles: ['admin', 'manager', 'seller'] },
-  { id: 'new-order', labelKey: 'newOrder', icon: ClipboardList, roles: ['admin', 'manager', 'seller'] },
   { id: 'my-orders', labelKey: 'myOrders', icon: PackageOpen, roles: ['seller'] },
-  { id: 'logistics', labelKey: 'loOrders', icon: Truck, roles: ['admin', 'manager'] },
   { id: 'settings', labelKey: 'settings', icon: SettingsIcon, roles: ['admin', 'manager'] },
 ];
 

@@ -15,9 +15,7 @@ import { FinancePage } from '@/pages/FinancePage';
 import { StaffPage } from '@/pages/StaffPage';
 import { SettingsPage } from '@/pages/SettingsPage';
 import { AiCopilotPage } from '@/pages/AiCopilotPage';
-import { NewOrderPage } from '@/pages/NewOrderPage';
 import { MyOrdersPage } from '@/pages/MyOrdersPage';
-import { AdminLogisticsPage } from '@/components/logistics/AdminLogisticsPage';
 import { LoadingSpinner } from '@/components/ui/States';
 
 function AppContent() {
@@ -69,12 +67,8 @@ function AppContent() {
         return <SettingsPage />;
       case 'ai':
         return <AiCopilotPage />;
-      case 'new-order':
-        return <NewOrderPage />;
       case 'my-orders':
         return <MyOrdersPage />;
-      case 'logistics':
-        return <AdminLogisticsPage />;
       default:
         return <DashboardPage onPageChange={goToPage} />;
     }
