@@ -29,7 +29,7 @@ export function ReceivingTab({ data, canManage, reload, onGoToPutaway }: Props) 
   const [formError, setFormError] = useState('');
   const [notice, setNotice] = useState<Notice>(null);
   const [lastReceived, setLastReceived] = useState(0);
-  const [undoing, setUndoing] = useState<string | null>(null);
+  const [editPo, setEditPo] = useState<PurchaseOrder | null>(null);
 
   const openOrders = data.orders.filter(o => o.status === 'yangi' || o.status === 'yuborildi' || o.status === 'qisman_qabul');
   const completedOrders = data.orders.filter(o => o.status === 'qabul_qilindi');
@@ -37,18 +37,6 @@ export function ReceivingTab({ data, canManage, reload, onGoToPutaway }: Props) 
   const supplierName = (id: string) => data.suppliers.find(s => s.id === id)?.name ?? '—';
   const modelName = (id: string) => data.models.find(m => m.id === id)?.name ?? '—';
 
-  const confirmUndo = async (o: PurchaseOrder) => {
-    if (!window.confirm(`Rostdan ham ${o.po_number} qabulini bekor qilib, xatolarni tahrirlamoqchimisiz?`)) return;
-    setUndoing(o.id);
-    const { error } = await supabase.rpc('erp_undo_receive_purchase', { p_po_id: o.id });
-    setUndoing(null);
-    if (error) {
-      setNotice({ kind: 'error', text: error.message.includes('ITEMS_ALREADY_IN_USE') ? 'Barcha tovarlar hali omborda emas (ijarada bo\'lishi mumkin), bekor qilib bo\'lmaydi.' : 'Xatolik yuz berdi' });
-      return;
-    }
-    setNotice({ kind: 'success', text: `${o.po_number} qabuli bekor qilindi, endi qaytadan qabul qilishingiz mumkin.` });
-    await reload();
-  };
 
   const start = (o: PurchaseOrder) => {
     const init: Record<string, Entry> = {};
@@ -173,41 +161,116 @@ export function ReceivingTab({ data, canManage, reload, onGoToPutaway }: Props) 
       {completedOrders.length > 0 && (
         <div className="mt-8 pt-8 border-t border-slate-200 dark:border-slate-800 space-y-4">
           <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Avval qabul qilinganlar (Eski qabullar)</h3>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {completedOrders.map(o => (
-              <div key={o.id} className="card flex flex-col p-5 bg-slate-50/50 dark:bg-slate-800/20">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="font-mono text-sm font-semibold text-slate-900 dark:text-slate-100">{o.po_number}</p>
-                    <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300"><Truck className="h-3.5 w-3.5 text-slate-400" /> {supplierName(o.supplier_id)}</p>
-                  </div>
-                  <span className={`badge ${getStatusColor(o.status)}`}>{t(o.status as TranslationKey)}</span>
-                </div>
-                <ul className="mt-4 flex-1 space-y-1.5 text-sm">
-                  {o.erp_purchase_order_lines.map(l => (
-                    <li key={l.id} className="flex justify-between gap-2">
-                      <span className="truncate text-slate-600 dark:text-slate-300">{modelName(l.model_id)}</span>
-                      <span className="flex-shrink-0 font-medium text-emerald-600 dark:text-emerald-400">{l.quantity_received} {t('pcs')}</span>
-                    </li>
-                  ))}
-                </ul>
-                {canManage && (
-                  <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-800">
-                    <button 
-                      onClick={() => confirmUndo(o)}
-                      disabled={undoing === o.id}
-                      className="w-full text-center text-sm font-medium text-red-600 hover:text-red-700 dark:text-red-400 flex justify-center items-center gap-2"
-                    >
-                      {undoing === o.id && <Loader2 className="h-4 w-4 animate-spin" />}
-                      Qabulni bekor qilish (Tahrirlash)
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
+          <div className="card overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-slate-50 dark:bg-slate-800/50">
+                <tr>
+                  <th className="px-4 py-3 font-medium text-slate-500">{t('ordNumber')}</th>
+                  <th className="px-4 py-3 font-medium text-slate-500">{t('supplier')}</th>
+                  <th className="px-4 py-3 font-medium text-slate-500">{t('date')}</th>
+                  <th className="px-4 py-3 font-medium text-slate-500">{t('status')}</th>
+                  <th className="w-10 px-4 py-3"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {completedOrders.map(o => (
+                  <tr key={o.id} onClick={() => setEditPo(o)} className="cursor-pointer transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                    <td className="px-4 py-3 font-mono font-medium text-slate-900 dark:text-slate-100">{o.po_number}</td>
+                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
+                      <div className="flex items-center gap-1.5"><Truck className="h-4 w-4 text-slate-400" /> {supplierName(o.supplier_id)}</div>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{formatDate(o.created_at)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`badge ${getStatusColor(o.status)}`}>{t(o.status as TranslationKey)}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <ArrowRight className="inline-block h-4 w-4 text-slate-400" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
+
+      {editPo && (
+        <EditReceiptModal
+          po={editPo}
+          modelName={modelName}
+          onClose={() => setEditPo(null)}
+          onChange={reload}
+        />
+      )}
     </div>
+  );
+}
+
+function EditReceiptModal({ po, modelName, onClose, onChange }: { po: PurchaseOrder; modelName: (id: string) => string; onClose: () => void; onChange: () => Promise<void> }) {
+  const { t } = useApp();
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  const loadItems = useCallback(async () => {
+    setLoading(true);
+    const { data, error: err } = await supabase.from('erp_product_items').select('*').eq('purchase_order_id', po.id).order('created_at', { ascending: false });
+    if (err) setError(err.message);
+    else setItems(data || []);
+    setLoading(false);
+  }, [po.id]);
+
+  useEffect(() => { loadItems(); }, [loadItems]);
+
+  const handleDelete = async (itemId: string, serial: string) => {
+    if (!window.confirm(`Rostdan ham ushbu uskunani qabuldan olib tashlamoqchimisiz?\nSeriya raqami: ${serial}`)) return;
+    setDeletingId(itemId);
+    setError('');
+    const { error: err } = await supabase.rpc('erp_delete_received_item', { p_item_id: itemId });
+    setDeletingId(null);
+    if (err) {
+      setError(err.message.includes('ITEM_IN_USE') ? 'Uskuna ijarada yoki omborda emas, o\'chirib bo\'lmaydi.' : 'Xatolik yuz berdi: ' + err.message);
+      return;
+    }
+    await loadItems();
+    await onChange();
+  };
+
+  return (
+    <Modal open={true} onClose={onClose} title={`${t('receiveOrder')} tahrirlash: ${po.po_number}`} size="lg">
+      <div className="space-y-4">
+        {error && <InlineNotice notice={{ kind: 'error', text: error }} onClose={() => setError('')} />}
+        
+        {loading ? (
+          <div className="py-8"><Loader2 className="mx-auto h-6 w-6 animate-spin text-blue-600" /></div>
+        ) : items.length === 0 ? (
+          <EmptyState icon={<PackageCheck className="h-10 w-10 text-slate-300" />} title="Qabul qilingan uskunalar yo'q" />
+        ) : (
+          <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
+            {items.map(item => (
+              <div key={item.id} className="flex items-center justify-between p-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                <div>
+                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{modelName(item.model_id)}</p>
+                  <p className="text-xs text-slate-500 font-mono mt-0.5">SN: {item.serial_number}</p>
+                </div>
+                <button
+                  onClick={() => handleDelete(item.id, item.serial_number)}
+                  disabled={deletingId === item.id}
+                  className="rounded-lg p-2 text-red-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-900/20"
+                  title="Qabuldan olib tashlash"
+                >
+                  {deletingId === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        
+        <div className="flex justify-end pt-2">
+          <button onClick={onClose} className="btn-primary">Yopish</button>
+        </div>
+      </div>
+    </Modal>
   );
 }
