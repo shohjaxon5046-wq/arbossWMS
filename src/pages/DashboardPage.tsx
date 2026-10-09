@@ -36,24 +36,30 @@ export function DashboardPage({ onPageChange }: { onPageChange: (page: PageId) =
 
   async function loadDashboard() {
     try {
-      const [cashRes, ordersRes, itemsRes, expensesRes, paymentsRes] = await Promise.all([
+      const [cashRes, ordersRes, allOrdersRes, itemsRes, expensesRes, paymentsRes] = await Promise.all([
         supabase.from('erp_cash_registers').select('*'),
         supabase.from('erp_orders').select('*').order('created_at', { ascending: false }).limit(10),
-        supabase.from('erp_product_items').select('*'),
-        supabase.from('erp_expenses').select('*'),
-        supabase.from('erp_order_payments').select('*'),
+        supabase.from('erp_orders').select('id, status'),
+        supabase.from('erp_product_items').select('status'),
+        supabase.from('erp_expenses').select('amount'),
+        supabase.from('erp_order_payments').select('amount, order_id'),
       ]);
 
       const registers = (cashRes.data || []) as CashRegister[];
-      const orders = (ordersRes.data || []) as Order[];
-      const items = (itemsRes.data || []) as ProductItem[];
-      const expenses = (expensesRes.data || []) as unknown as { amount: number }[];
-      const payments = (paymentsRes.data || []) as unknown as { amount: number }[];
+      const recentOrders = (ordersRes.data || []) as Order[];
+      const allOrders = (allOrdersRes.data || []) as { id: string, status: string }[];
+      const items = (itemsRes.data || []) as { status: string }[];
+      const expenses = (expensesRes.data || []) as { amount: number }[];
+      const payments = (paymentsRes.data || []) as { amount: number, order_id: string }[];
 
       const totalCash = registers.reduce((sum, r) => sum + Number(r.current_balance || 0), 0);
-      const activeOrders = orders.filter(o => o.status === 'faol_ijarada').length;
-      const overdueOrders = orders.filter(o => o.status === 'kechikkan');
-      const totalRevenue = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+      const activeOrders = allOrders.filter(o => o.status === 'faol_ijarada').length;
+      const overdueOrders = allOrders.filter(o => o.status === 'kechikkan').length;
+      
+      const cancelledIds = new Set(allOrders.filter(o => o.status === 'bekor').map(o => o.id));
+      const validPayments = payments.filter(p => !cancelledIds.has(p.order_id));
+      
+      const totalRevenue = validPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
       const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount || 0), 0);
       const netProfit = totalRevenue - totalExpenses;
 
@@ -62,11 +68,13 @@ export function DashboardPage({ onPageChange }: { onPageChange: (page: PageId) =
       const repair = items.filter(i => i.status === 'tamirda').length;
       const awaitingPutaway = items.filter(i => i.status === 'joylashtirish_kutilmoqda').length;
       const awaitingReturn = items.filter(i => i.status === 'qaytarish_kutilmoqda').length;
+      
+      const overdueList = recentOrders.filter(o => o.status === 'kechikkan');
 
       setData({
         totalCash,
         activeOrders,
-        overdueOrders: overdueOrders.length,
+        overdueOrders, // it's already a number
         netProfit,
         totalEquipment: items.length,
         availableEquipment: available,
@@ -74,8 +82,8 @@ export function DashboardPage({ onPageChange }: { onPageChange: (page: PageId) =
         inRepair: repair,
         awaitingPutaway,
         awaitingReturn,
-        recentOrders: orders.slice(0, 5),
-        overdueList: overdueOrders.slice(0, 5),
+        recentOrders: recentOrders.slice(0, 5),
+        overdueList: overdueList.slice(0, 5),
       });
     } catch (err) {
       console.error('Dashboard load error:', err);
