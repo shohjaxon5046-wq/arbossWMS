@@ -29,10 +29,26 @@ export function ReceivingTab({ data, canManage, reload, onGoToPutaway }: Props) 
   const [formError, setFormError] = useState('');
   const [notice, setNotice] = useState<Notice>(null);
   const [lastReceived, setLastReceived] = useState(0);
+  const [undoing, setUndoing] = useState<string | null>(null);
 
   const openOrders = data.orders.filter(o => o.status === 'yangi' || o.status === 'yuborildi' || o.status === 'qisman_qabul');
+  const completedOrders = data.orders.filter(o => o.status === 'qabul_qilindi');
+  
   const supplierName = (id: string) => data.suppliers.find(s => s.id === id)?.name ?? '—';
   const modelName = (id: string) => data.models.find(m => m.id === id)?.name ?? '—';
+
+  const confirmUndo = async (o: PurchaseOrder) => {
+    if (!window.confirm(`Rostdan ham ${o.po_number} qabulini bekor qilib, xatolarni tahrirlamoqchimisiz?`)) return;
+    setUndoing(o.id);
+    const { error } = await supabase.rpc('erp_undo_receive_purchase', { p_po_id: o.id });
+    setUndoing(null);
+    if (error) {
+      setNotice({ kind: 'error', text: error.message.includes('ITEMS_ALREADY_IN_USE') ? 'Barcha tovarlar hali omborda emas (ijarada bo\'lishi mumkin), bekor qilib bo\'lmaydi.' : 'Xatolik yuz berdi' });
+      return;
+    }
+    setNotice({ kind: 'success', text: `${o.po_number} qabuli bekor qilindi, endi qaytadan qabul qilishingiz mumkin.` });
+    await reload();
+  };
 
   const start = (o: PurchaseOrder) => {
     const init: Record<string, Entry> = {};
@@ -152,6 +168,46 @@ export function ReceivingTab({ data, canManage, reload, onGoToPutaway }: Props) 
           </div>
         )}
       </Modal>
+
+      {/* Completed Orders Section */}
+      {completedOrders.length > 0 && (
+        <div className="mt-8 pt-8 border-t border-slate-200 dark:border-slate-800 space-y-4">
+          <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Avval qabul qilinganlar (Eski qabullar)</h3>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {completedOrders.map(o => (
+              <div key={o.id} className="card flex flex-col p-5 bg-slate-50/50 dark:bg-slate-800/20">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-mono text-sm font-semibold text-slate-900 dark:text-slate-100">{o.po_number}</p>
+                    <p className="mt-1 flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300"><Truck className="h-3.5 w-3.5 text-slate-400" /> {supplierName(o.supplier_id)}</p>
+                  </div>
+                  <span className={`badge ${getStatusColor(o.status)}`}>{t(o.status as TranslationKey)}</span>
+                </div>
+                <ul className="mt-4 flex-1 space-y-1.5 text-sm">
+                  {o.erp_purchase_order_lines.map(l => (
+                    <li key={l.id} className="flex justify-between gap-2">
+                      <span className="truncate text-slate-600 dark:text-slate-300">{modelName(l.model_id)}</span>
+                      <span className="flex-shrink-0 font-medium text-emerald-600 dark:text-emerald-400">{l.quantity_received} {t('pcs')}</span>
+                    </li>
+                  ))}
+                </ul>
+                {canManage && (
+                  <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-800">
+                    <button 
+                      onClick={() => confirmUndo(o)}
+                      disabled={undoing === o.id}
+                      className="w-full text-center text-sm font-medium text-red-600 hover:text-red-700 dark:text-red-400 flex justify-center items-center gap-2"
+                    >
+                      {undoing === o.id && <Loader2 className="h-4 w-4 animate-spin" />}
+                      Qabulni bekor qilish (Tahrirlash)
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
