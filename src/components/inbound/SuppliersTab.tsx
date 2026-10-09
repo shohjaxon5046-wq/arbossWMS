@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import { Plus, Pencil, Trash2, Building, Phone, User, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Building, Phone, User, Loader2, Receipt } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useApp } from '@/contexts/AppContext';
 import { inboundErrorKey } from '@/lib/inbound';
-import { normalizePhone } from '@/lib/format';
+import { normalizePhone, formatCurrency } from '@/lib/format';
 import { EmptyState } from '@/components/ui/States';
 import { Modal, ConfirmDialog } from '@/components/ui/Modal';
 import { InlineNotice, FieldLabel, type Notice } from '@/components/inbound/InlineNotice';
+import { SupplierCardModal } from './SupplierCardModal';
 import type { InboundData, Supplier } from '@/types';
 
 interface Props {
@@ -26,13 +27,19 @@ export function SuppliersTab({ data, canManage, reload }: Props) {
   const [notice, setNotice] = useState<Notice>(null);
   const [formError, setFormError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<Supplier | null>(null);
+  const [activeSupplier, setActiveSupplier] = useState<Supplier | null>(null);
 
   const openAdd = () => { setEditing(null); setForm(emptyForm); setFormError(''); setModalOpen(true); };
-  const openEdit = (s: Supplier) => {
+  const openEdit = (e: React.MouseEvent, s: Supplier) => {
+    e.stopPropagation();
     setEditing(s);
     setForm({ name: s.name, contact_person: s.contact_person, phone: s.phone, address: s.address, notes: s.notes });
     setFormError('');
     setModalOpen(true);
+  };
+  const openDelete = (e: React.MouseEvent, s: Supplier) => {
+    e.stopPropagation();
+    setDeleteTarget(s);
   };
 
   const save = async () => {
@@ -84,8 +91,9 @@ export function SuppliersTab({ data, canManage, reload }: Props) {
           {data.suppliers.map(s => {
             const orders = data.orders.filter(o => o.supplier_id === s.id).length;
             const returns = data.returns.filter(r => r.supplier_id === s.id).length;
+            const balance = s.balance || 0;
             return (
-              <div key={s.id} className="card card-hover group p-5">
+              <div key={s.id} onClick={() => setActiveSupplier(s)} className="card card-hover group p-5 cursor-pointer border border-transparent hover:border-blue-200 dark:hover:border-blue-900/50">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex min-w-0 items-center gap-3">
                     <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300">
@@ -98,8 +106,8 @@ export function SuppliersTab({ data, canManage, reload }: Props) {
                   </div>
                   {canManage && (
                     <div className="flex gap-1 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                      <button onClick={() => openEdit(s)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-blue-600 dark:hover:bg-slate-800"><Pencil className="h-4 w-4" /></button>
-                      <button onClick={() => setDeleteTarget(s)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"><Trash2 className="h-4 w-4" /></button>
+                      <button onClick={(e) => openEdit(e, s)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-blue-600 dark:hover:bg-slate-800"><Pencil className="h-4 w-4" /></button>
+                      <button onClick={(e) => openDelete(e, s)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20"><Trash2 className="h-4 w-4" /></button>
                     </div>
                   )}
                 </div>
@@ -107,6 +115,16 @@ export function SuppliersTab({ data, canManage, reload }: Props) {
                   {s.contact_person && <p className="flex items-center gap-2"><User className="h-3.5 w-3.5 text-slate-400" /> {s.contact_person}</p>}
                   {s.phone && <p className="flex items-center gap-2"><Phone className="h-3.5 w-3.5 text-slate-400" /> <a href={`tel:${s.phone.replace(/[^\d+]/g, '')}`} className="hover:text-blue-600">{s.phone}</a></p>}
                 </div>
+                
+                <div className="mt-4 flex flex-col gap-2 rounded-lg bg-slate-50 p-3 dark:bg-slate-800/50">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-slate-500">Balans:</span>
+                    <span className={`text-sm font-bold ${balance < 0 ? 'text-emerald-600 dark:text-emerald-400' : balance > 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-600 dark:text-slate-300'}`}>
+                      {balance > 0 ? '-' : ''}{formatCurrency(Math.abs(balance))}
+                    </span>
+                  </div>
+                </div>
+
                 <div className="mt-4 flex gap-4 border-t border-slate-100 pt-3 text-xs text-slate-500 dark:border-slate-800 dark:text-slate-400">
                   <span><b className="text-slate-800 dark:text-slate-100">{orders}</b> {t('supplierOrders').toLowerCase()}</span>
                   <span><b className="text-slate-800 dark:text-slate-100">{returns}</b> {t('supplierReturns').toLowerCase()}</span>
@@ -135,6 +153,17 @@ export function SuppliersTab({ data, canManage, reload }: Props) {
       </Modal>
 
       <ConfirmDialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} onConfirm={remove} title={t('delete')} message={`${deleteTarget?.name ?? ''}?`} />
+
+      <SupplierCardModal 
+        supplier={activeSupplier} 
+        onClose={() => setActiveSupplier(null)} 
+        onUpdate={async () => {
+          await reload();
+          // Update the active supplier reference to reflect new balance
+          const updated = data.suppliers.find(s => s.id === activeSupplier?.id);
+          if (updated) setActiveSupplier(updated);
+        }}
+      />
     </div>
   );
 }

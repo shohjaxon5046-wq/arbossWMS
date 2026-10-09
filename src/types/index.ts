@@ -84,8 +84,24 @@ export interface Supplier {
   phone: string;
   address: string;
   notes: string;
+  balance: number;
   created_at: string;
   updated_at: string;
+}
+
+export type SupplierTransactionType = 'payment' | 'purchase' | 'return' | 'adjustment';
+
+export interface SupplierTransaction {
+  id: string;
+  supplier_id: string;
+  transaction_type: SupplierTransactionType;
+  amount: number;
+  currency: string;
+  reference_id: string | null;
+  date: string;
+  notes: string;
+  created_by: string;
+  created_at: string;
 }
 
 export type PurchaseOrderStatus = 'yangi' | 'yuborildi' | 'qisman_qabul' | 'qabul_qilindi' | 'bekor';
