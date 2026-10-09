@@ -74,16 +74,23 @@ async function sendModelKeyboard(sb: Sb, chatId: string, catId: string, editMsgI
     .eq("is_active", true)
     .order("name");
     
-  const { data: items } = await sb.from("erp_product_items")
-    .select("model_id")
-    .eq("status", "omborda_bosh");
-    
-  const availableIds = new Set((items || []).map(i => i.model_id));
-  const availableModels = (models || []).filter(m => availableIds.has(m.id));
+  const modelIds = (models || []).map(m => m.id);
+  let availableIds = new Set<string>();
+  
+  if (modelIds.length > 0) {
+    const { data: items } = await sb.from("erp_product_items")
+      .select("model_id")
+      .in("model_id", modelIds)
+      .eq("status", "omborda_bosh");
+    availableIds = new Set((items || []).map(i => i.model_id));
+  }
 
-  const buttons = availableModels.map(m => [{ text: m.name, callback_data: `draft:mod:${m.id}` }]);
+  const buttons = (models || []).map(m => {
+    const isAvail = availableIds.has(m.id);
+    return [{ text: m.name + (isAvail ? "" : " (Band)"), callback_data: `draft:mod:${m.id}` }];
+  });
   buttons.push([{ text: "⬅️ Orqaga (Toifalar)", callback_data: "draft:back:cat" }]);
-  await tg("editMessageText", { chat_id: chatId, message_id: editMsgId, text: "<b>2. Bo'sh uskunani tanlang:</b>", parse_mode: "HTML", ...inline(buttons) });
+  await tg("editMessageText", { chat_id: chatId, message_id: editMsgId, text: "<b>2. Modelni tanlang:</b>", parse_mode: "HTML", ...inline(buttons) });
 }
 
 async function sendModelCard(sb: Sb, chatId: string, modelId: string, editMsgId: number) {
@@ -91,7 +98,6 @@ async function sendModelCard(sb: Sb, chatId: string, modelId: string, editMsgId:
   if (!m) return;
   const text = `<b>${esc(m.name)}</b>\n\nNarx (kunlik): ${m.daily_price} so'm\nZalog: ${m.deposit_amount} so'm`;
   
-  // Try to find available item
   const { data: items } = await sb.from("erp_product_items").select("id, serial_number").eq("model_id", modelId).eq("status", "omborda_bosh").limit(1);
   const available = items && items.length > 0;
   
@@ -104,19 +110,22 @@ async function sendModelCard(sb: Sb, chatId: string, modelId: string, editMsgId:
   let pic = m.image_url;
   if (pic && !pic.startsWith("http")) pic = `${Deno.env.get("SUPABASE_URL")}/storage/v1/object/public/model-images/${pic}`;
 
-  // Delete previous message and send photo
   await tg("deleteMessage", { chat_id: chatId, message_id: editMsgId });
   if (pic) {
-    await tg("sendPhoto", { chat_id: chatId, photo: pic, caption: text + (available ? "" : "\n\n<i>Kechirasiz, omborda qolmagan</i>"), parse_mode: "HTML", ...inline(buttons) });
+    await tg("sendPhoto", { chat_id: chatId, photo: pic, caption: text + (available ? "" : "\n\n<i>Kechirasiz, omborda qolmagan (Barchasi band)</i>"), parse_mode: "HTML", ...inline(buttons) });
   } else {
-    await send(chatId, text + (available ? "" : "\n\n<i>Kechirasiz, omborda qolmagan</i>"), inline(buttons));
+    await send(chatId, text + (available ? "" : "\n\n<i>Kechirasiz, omborda qolmagan (Barchasi band)</i>"), inline(buttons));
   }
 }
 
 export async function handleDraftCallback(sb: Sb, cb: Callback, actor: Actor) {
-  const answer = (text?: string) => tg("answerCallbackQuery", { callback_query_id: cb.id, text, show_alert: false });
+  const answer = (text?: string) => tg("answerCallbackQuery", { callback_query_id: cb.id, text, show_alert: !!text }).catch(() => {});
+  
+  // Qotib qolmasligi uchun darhol javob qaytaramiz
+  await answer();
+
   const draft = await loadDraft(sb, actor.chatId);
-  if (!draft) return answer("Buyurtma topilmadi. Qaytadan boshlang.");
+  if (!draft) return send(actor.chatId, "Buyurtma topilmadi. Qaytadan boshlang.");
   
   const parts = cb.data?.split(":") ?? [];
   const action = parts[1];
@@ -124,40 +133,42 @@ export async function handleDraftCallback(sb: Sb, cb: Callback, actor: Actor) {
 
   if (action === "cat") {
     await sendModelKeyboard(sb, actor.chatId, id, cb.message!.message_id);
-    return answer();
+    return;
   }
   if (action === "mod") {
     await sendModelCard(sb, actor.chatId, id, cb.message!.message_id);
-    return answer();
+    return;
   }
   if (action === "back") {
     if (id === "cat") {
       await sendCategoryKeyboard(sb, actor.chatId, cb.message!.message_id);
     } else if (id === "mod") {
       const catId = parts[3];
-      // Since it might be a photo message, editMessageText fails if it's a photo.
-      // So delete and send new.
       await tg("deleteMessage", { chat_id: actor.chatId, message_id: cb.message!.message_id });
-      const { data: models } = await sb.from("erp_product_models")
-        .select("id, name")
-        .eq("category_id", catId)
-        .eq("is_active", true)
-        .order("name");
-      const { data: items } = await sb.from("erp_product_items")
-        .select("model_id")
-        .eq("status", "omborda_bosh");
-      const availableIds = new Set((items || []).map(i => i.model_id));
-      const availableModels = (models || []).filter(m => availableIds.has(m.id));
-
-      const buttons = availableModels.map(m => [{ text: m.name, callback_data: `draft:mod:${m.id}` }]);
+      
+      const { data: models } = await sb.from("erp_product_models").select("id, name").eq("category_id", catId).eq("is_active", true).order("name");
+      const modelIds = (models || []).map(m => m.id);
+      let availableIds = new Set<string>();
+      if (modelIds.length > 0) {
+        const { data: items } = await sb.from("erp_product_items").select("model_id").in("model_id", modelIds).eq("status", "omborda_bosh");
+        availableIds = new Set((items || []).map(i => i.model_id));
+      }
+      
+      const buttons = (models || []).map(m => {
+        const isAvail = availableIds.has(m.id);
+        return [{ text: m.name + (isAvail ? "" : " (Band)"), callback_data: `draft:mod:${m.id}` }];
+      });
       buttons.push([{ text: "⬅️ Orqaga (Toifalar)", callback_data: "draft:back:cat" }]);
-      await send(actor.chatId, "<b>2. Bo'sh uskunani tanlang:</b>", inline(buttons));
+      await send(actor.chatId, "<b>2. Modelni tanlang:</b>", inline(buttons));
     }
-    return answer();
+    return;
   }
   if (action === "add") {
     const { data: items } = await sb.from("erp_product_items").select("id, serial_number, erp_product_models(name)").eq("model_id", id).eq("status", "omborda_bosh").limit(1);
-    if (!items || !items.length) return answer("Kechirasiz, omborda qolmagan.");
+    if (!items || !items.length) {
+      await send(actor.chatId, "Kechirasiz, ushbu uskuna allaqachon band qilindi.");
+      return;
+    }
     const item = items[0];
     const m = item.erp_product_models as any;
     
