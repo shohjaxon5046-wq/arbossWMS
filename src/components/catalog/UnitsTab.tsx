@@ -21,6 +21,9 @@ export function UnitsTab({ model, items, canEditPct, onItemChanged, onPrint, onE
   const { t } = useApp();
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
+  
+  const [serialDrafts, setSerialDrafts] = useState<Record<string, string>>({});
+  const [savingSerialId, setSavingSerialId] = useState<string | null>(null);
 
   const savePct = async (item: ProductItem) => {
     const raw = drafts[item.id];
@@ -33,6 +36,25 @@ export function UnitsTab({ model, items, canEditPct, onItemChanged, onPrint, onE
     if (error || !data) { onError(t(ordersErrorKey(error))); return; }
     onItemChanged(data as ProductItem);
     setDrafts(d => { const rest = { ...d }; delete rest[item.id]; return rest; });
+  };
+
+  const saveSerial = async (item: ProductItem) => {
+    const raw = serialDrafts[item.id];
+    if (raw === undefined) return;
+    const next = raw.trim();
+    if (next === item.serial_number) {
+      setSerialDrafts(d => { const rest = { ...d }; delete rest[item.id]; return rest; });
+      return;
+    }
+    setSavingSerialId(item.id);
+    const { data, error } = await supabase.from('erp_product_items').update({ serial_number: next }).eq('id', item.id).select().maybeSingle();
+    setSavingSerialId(null);
+    if (error || !data) { 
+      onError(error?.message.includes('uq_pi_serial') ? 'Bu seriya raqami band yoki xato!' : t(ordersErrorKey(error))); 
+      return; 
+    }
+    onItemChanged(data as ProductItem);
+    setSerialDrafts(d => { const rest = { ...d }; delete rest[item.id]; return rest; });
   };
 
   if (items.length === 0) {
@@ -74,7 +96,20 @@ export function UnitsTab({ model, items, canEditPct, onItemChanged, onPrint, onE
               const roi = cost > 0 ? Math.round((revenue / cost) * 100) : null;
               return (
                 <tr key={i.id} className="transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40">
-                  <td className="px-3 py-2.5 font-mono text-xs font-semibold text-slate-900 dark:text-slate-100">{i.serial_number}</td>
+                  <td className="px-3 py-2.5">
+                    <div className="inline-flex items-center gap-1">
+                      {savingSerialId === i.id && <Loader2 className="h-3 w-3 animate-spin text-blue-600" />}
+                      <input
+                        type="text"
+                        value={serialDrafts[i.id] ?? i.serial_number}
+                        onChange={e => setSerialDrafts(d => ({ ...d, [i.id]: e.target.value }))}
+                        onBlur={() => saveSerial(i)}
+                        onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                        className="w-24 rounded border border-transparent bg-transparent px-1.5 py-1 font-mono text-xs font-semibold text-slate-900 hover:border-slate-300 focus:border-blue-500 focus:bg-white focus:outline-none dark:text-slate-100 dark:hover:border-slate-600 dark:focus:bg-slate-900"
+                        title="Tahrirlash uchun bosing"
+                      />
+                    </div>
+                  </td>
                   <td className="px-3 py-2.5 font-mono text-xs text-slate-600 dark:text-slate-300">{i.warehouse_location_shelf || '—'}</td>
                   <td className="px-3 py-2.5"><span className={`badge ${getStatusColor(i.status)}`}>{t(i.status as never) || i.status}</span></td>
                   <td className="px-3 py-2.5 text-right tabular-nums">{formatCurrency(cost)}</td>
