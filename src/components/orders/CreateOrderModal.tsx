@@ -138,9 +138,11 @@ export function CreateOrderModal({ open, onClose, onCreated }: Props) {
         }
       }
       onCreated(orderId);
-    } catch (err) {
+    } catch (err: any) {
+      console.error('Order creation error:', err);
       const key = ordersErrorKey(err);
-      setNotice({ kind: 'error', text: t(key) });
+      const msg = err?.message || String(err);
+      setNotice({ kind: 'error', text: `${t(key)} (${msg})` });
       if (key === 'errItemUnavailable') {
         setItemIds([]);
         loadRefs();
