@@ -1,5 +1,5 @@
 import {
-  type Actor, type Sb, esc, ORDER_STATUS, send,
+  type Actor, type Sb, esc, send, tg, inline, type Callback, ORDER_STATUS
 } from "./lib.ts";
 
 type Draft = { chat_id: string; stage: string; data: Record<string, unknown> };
@@ -19,7 +19,6 @@ export async function clearDraft(sb: Sb, chatId: string) {
 }
 
 type Customer = { id: string; full_name: string; phone_primary: string };
-
 async function findCustomers(sb: Sb, query: string): Promise<Customer[]> {
   const digits = query.replace(/\D/g, "");
   let req = sb.from("erp_customers").select("id, full_name, phone_primary").limit(6);
@@ -41,22 +40,117 @@ function draftSummary(d: Draft): string {
     for (const l of d.data.item_labels as string[]) lines.push(`  • ${esc(l)}`);
   }
   if (d.data.delivery_type === "delivery") lines.push(`Yetkazish: ${esc(String(d.data.delivery_address || "—"))}`);
-  else lines.push("Olib ketish: ombordan");
+  else if (d.data.delivery_type === "pickup") lines.push("Olib ketish: ombordan");
   if (d.data.notes) lines.push(`Izoh: ${esc(String(d.data.notes))}`);
   return lines.join("\n");
 }
 
 const CANCEL = "Bekor qilish";
-const DONE = "Tayyor";
 
 export async function startOrderDraft(sb: Sb, actor: Extract<Actor, { type: "staff" }>) {
   await clearDraft(sb, actor.chatId);
-  await saveDraft(sb, actor.chatId, "customer", {});
-  return send(
-    actor.chatId,
-    "<b>Yangi buyurtma</b>\n\n1/5. Mijozni toping: ismini yoki telefon raqamini yozing.",
-    { reply_markup: { keyboard: [[{ text: CANCEL }]], resize_keyboard: true, one_time_keyboard: true } },
-  );
+  await saveDraft(sb, actor.chatId, "category", { item_ids: [], item_labels: [] });
+  await sendCategoryKeyboard(sb, actor.chatId);
+  return send(actor.chatId, "Buyurtma jarayoni boshlandi. Bekor qilish uchun tugmani bosing.", {
+    reply_markup: { keyboard: [[{ text: CANCEL }]], resize_keyboard: true }
+  });
+}
+
+async function sendCategoryKeyboard(sb: Sb, chatId: string, editMsgId?: number) {
+  const { data } = await sb.from("erp_categories").select("id, name").order("name");
+  const buttons = (data || []).map(c => [{ text: c.name, callback_data: `draft:cat:${c.id}` }]);
+  const text = "<b>1. Uskuna toifasini tanlang:</b>";
+  if (editMsgId) {
+    await tg("editMessageText", { chat_id: chatId, message_id: editMsgId, text, parse_mode: "HTML", ...inline(buttons) });
+  } else {
+    await send(chatId, text, inline(buttons));
+  }
+}
+
+async function sendModelKeyboard(sb: Sb, chatId: string, catId: string, editMsgId: number) {
+  const { data } = await sb.from("erp_product_models").select("id, name").eq("category_id", catId).eq("is_active", true).order("name");
+  const buttons = (data || []).map(m => [{ text: m.name, callback_data: `draft:mod:${m.id}` }]);
+  buttons.push([{ text: "⬅️ Orqaga (Toifalar)", callback_data: "draft:back:cat" }]);
+  await tg("editMessageText", { chat_id: chatId, message_id: editMsgId, text: "<b>2. Modelni tanlang:</b>", parse_mode: "HTML", ...inline(buttons) });
+}
+
+async function sendModelCard(sb: Sb, chatId: string, modelId: string, editMsgId: number) {
+  const { data: m } = await sb.from("erp_product_models").select("*").eq("id", modelId).maybeSingle();
+  if (!m) return;
+  const text = `<b>${esc(m.name)}</b>\n\nNarx (kunlik): ${m.daily_price} so'm\nZalog: ${m.deposit_amount} so'm`;
+  
+  // Try to find available item
+  const { data: items } = await sb.from("erp_product_items").select("id, serial_number").eq("model_id", modelId).eq("status", "omborda_bosh").limit(1);
+  const available = items && items.length > 0;
+  
+  let buttons = [];
+  if (available) {
+    buttons.push([{ text: "✅ Savatga qo'shish", callback_data: `draft:add:${m.id}` }]);
+  }
+  buttons.push([{ text: "⬅️ Orqaga (Modellar)", callback_data: `draft:back:mod:${m.category_id}` }]);
+
+  let pic = m.image_url;
+  if (pic && !pic.startsWith("http")) pic = `${Deno.env.get("SUPABASE_URL")}/storage/v1/object/public/model-images/${pic}`;
+
+  // Delete previous message and send photo
+  await tg("deleteMessage", { chat_id: chatId, message_id: editMsgId });
+  if (pic) {
+    await tg("sendPhoto", { chat_id: chatId, photo: pic, caption: text + (available ? "" : "\n\n<i>Kechirasiz, omborda qolmagan</i>"), parse_mode: "HTML", ...inline(buttons) });
+  } else {
+    await send(chatId, text + (available ? "" : "\n\n<i>Kechirasiz, omborda qolmagan</i>"), inline(buttons));
+  }
+}
+
+export async function handleDraftCallback(sb: Sb, cb: Callback, actor: Actor) {
+  const answer = (text?: string) => tg("answerCallbackQuery", { callback_query_id: cb.id, text, show_alert: false });
+  const draft = await loadDraft(sb, actor.chatId);
+  if (!draft) return answer("Buyurtma topilmadi. Qaytadan boshlang.");
+  
+  const parts = cb.data?.split(":") ?? [];
+  const action = parts[1];
+  const id = parts[2];
+
+  if (action === "cat") {
+    await sendModelKeyboard(sb, actor.chatId, id, cb.message!.message_id);
+    return answer();
+  }
+  if (action === "mod") {
+    await sendModelCard(sb, actor.chatId, id, cb.message!.message_id);
+    return answer();
+  }
+  if (action === "back") {
+    if (id === "cat") {
+      await sendCategoryKeyboard(sb, actor.chatId, cb.message!.message_id);
+    } else if (id === "mod") {
+      const catId = parts[3];
+      // Since it might be a photo message, editMessageText fails if it's a photo.
+      // So delete and send new.
+      await tg("deleteMessage", { chat_id: actor.chatId, message_id: cb.message!.message_id });
+      const { data } = await sb.from("erp_product_models").select("id, name").eq("category_id", catId).eq("is_active", true).order("name");
+      const buttons = (data || []).map(m => [{ text: m.name, callback_data: `draft:mod:${m.id}` }]);
+      buttons.push([{ text: "⬅️ Orqaga (Toifalar)", callback_data: "draft:back:cat" }]);
+      await send(actor.chatId, "<b>2. Modelni tanlang:</b>", inline(buttons));
+    }
+    return answer();
+  }
+  if (action === "add") {
+    const { data: items } = await sb.from("erp_product_items").select("id, serial_number, erp_product_models(name)").eq("model_id", id).eq("status", "omborda_bosh").limit(1);
+    if (!items || !items.length) return answer("Kechirasiz, omborda qolmagan.");
+    const item = items[0];
+    const m = item.erp_product_models as any;
+    
+    draft.data.item_ids = [...((draft.data.item_ids as string[]) || []), item.id];
+    draft.data.item_labels = [...((draft.data.item_labels as string[]) || []), `${m.name} (${item.serial_number})`];
+    
+    // Move to next stage
+    draft.stage = "customer";
+    await saveDraft(sb, actor.chatId, draft.stage, draft.data);
+    await tg("deleteMessage", { chat_id: actor.chatId, message_id: cb.message!.message_id });
+    await send(actor.chatId, `${draftSummary(draft)}\n\nUskuna savatga qo'shildi!\n\n3. Mijozni toping: ismini yoki telefon raqamini yozing. (yoki <b>Bekor qilish</b>)`);
+    return answer("Qo'shildi!");
+  }
+  
+  return answer();
 }
 
 export async function handleDraftStep(sb: Sb, actor: Extract<Actor, { type: "staff" }>, text: string): Promise<boolean> {
@@ -70,10 +164,16 @@ export async function handleDraftStep(sb: Sb, actor: Extract<Actor, { type: "sta
     return true;
   }
 
+  // If they type text while in category picking, just ignore or ask to pick
+  if (draft.stage === "category") {
+    await send(actor.chatId, "Iltimos, yuqoridagi tugmalardan uskunani tanlang.", kb);
+    return true;
+  }
+
   if (draft.stage === "customer") {
     const customers = await findCustomers(sb, text);
     if (!customers.length) {
-      await send(actor.chatId, "Mijoz topilmadi. Ism yoki telefon raqamini qayta yozing (yoki " + CANCEL + ").", kb);
+      await send(actor.chatId, "Mijoz topilmadi. Ism yoki telefon raqamini qayta yozing:", kb);
       return true;
     }
     if (customers.length === 1) {
@@ -81,16 +181,12 @@ export async function handleDraftStep(sb: Sb, actor: Extract<Actor, { type: "sta
       draft.data.customer_id = c.id;
       draft.data.customer_name = c.full_name;
       await saveDraft(sb, actor.chatId, "days", draft.data);
-      await send(actor.chatId, `${draftSummary(draft)}\n\n2/5. Ijara muddati kunlarda (masalan: 3):`, kb);
+      await send(actor.chatId, `${draftSummary(draft)}\n\n4. Ijara muddati kunlarda (masalan: 3):`, kb);
       return true;
     }
     draft.data._matches = customers;
     await saveDraft(sb, actor.chatId, "customer_pick", draft.data);
-    await send(
-      actor.chatId,
-      "Bir nechta mijoz topildi. To'liq ismini yozing:",
-      kb,
-    );
+    await send(actor.chatId, "Bir nechta mijoz topildi. To'liq ismini yozing:", kb);
     return true;
   }
 
@@ -105,7 +201,7 @@ export async function handleDraftStep(sb: Sb, actor: Extract<Actor, { type: "sta
     draft.data.customer_name = exact.full_name;
     delete draft.data._matches;
     await saveDraft(sb, actor.chatId, "days", draft.data);
-    await send(actor.chatId, `${draftSummary(draft)}\n\n2/5. Ijara muddati kunlarda (masalan: 3):`, kb);
+    await send(actor.chatId, `${draftSummary(draft)}\n\n4. Ijara muddati kunlarda (masalan: 3):`, kb);
     return true;
   }
 
@@ -116,56 +212,8 @@ export async function handleDraftStep(sb: Sb, actor: Extract<Actor, { type: "sta
       return true;
     }
     draft.data.rent_days = days;
-    await saveDraft(sb, actor.chatId, "items", draft.data);
-    await send(
-      actor.chatId,
-      `${draftSummary(draft)}\n\n3/5. Uskuna seriya raqamini yozing (birma-bir). Uskunalar tugadi bo'lsa — <b>${DONE}</b> deb yozing.`,
-      kb,
-    );
-    return true;
-  }
-
-  if (draft.stage === "items") {
-    if (text.toLowerCase() === DONE.toLowerCase()) {
-      const labels = (draft.data.item_labels ?? []) as string[];
-      const ids = (draft.data.item_ids ?? []) as string[];
-      if (!ids.length) {
-        await send(actor.chatId, "Kamida bitta uskuna kerak. Seriya raqamini yozing:", kb);
-        return true;
-      }
-      await saveDraft(sb, actor.chatId, "delivery", draft.data);
-      await send(
-        actor.chatId,
-        `${draftSummary(draft)}\n\n4/5. Yetkazib berish kerakmi? <b>Ha</b> yoki <b>Yo'q</b>:`,
-        kb,
-      );
-      return true;
-    }
-    const { data: item } = await sb.from("erp_product_items")
-      .select("id, serial_number, status, erp_product_models(name, is_active)")
-      .eq("serial_number", text.trim())
-      .maybeSingle();
-    if (!item) {
-      await send(actor.chatId, "Bunday seriya raqamli uskuna topilmadi. Qayta yozing:", kb);
-      return true;
-    }
-    const model = item.erp_product_models as unknown as { name: string; is_active: boolean } | null;
-    if (item.status !== "omborda_bosh" || !model?.is_active) {
-      await send(actor.chatId, `Uskuna <b>${esc(model?.name ?? "")}</b> hozir bo'sh emas (holat: ${esc(item.status)}). Boshqa seriya raqami yozing:`, kb);
-      return true;
-    }
-    const ids = ((draft.data.item_ids ?? []) as string[]).filter(x => x !== item.id);
-    const labels = ((draft.data.item_labels ?? []) as string[]).filter(x => !x.includes(item.serial_number));
-    ids.push(item.id);
-    labels.push(`${model.name} (${item.serial_number})`);
-    draft.data.item_ids = ids;
-    draft.data.item_labels = labels;
-    await saveDraft(sb, actor.chatId, "items", draft.data);
-    await send(
-      actor.chatId,
-      `${draftSummary(draft)}\n\nYana uskuna qo'shsangiz seriya raqamini yozing, tugadi bo'lsa — <b>${DONE}</b>:`,
-      kb,
-    );
+    await saveDraft(sb, actor.chatId, "delivery", draft.data);
+    await send(actor.chatId, `${draftSummary(draft)}\n\n5. Yetkazib berish kerakmi? <b>Ha</b> yoki <b>Yo'q</b>:`, kb);
     return true;
   }
 
@@ -180,7 +228,7 @@ export async function handleDraftStep(sb: Sb, actor: Extract<Actor, { type: "sta
     if (t === "yo'q" || t === "yoq" || t === "yo‘q" || t === "yoʻq") {
       draft.data.delivery_type = "pickup";
       await saveDraft(sb, actor.chatId, "notes", draft.data);
-      await send(actor.chatId, `${draftSummary(draft)}\n\n5/5. Izoh (yoki — bo'sh qoldirish uchun):`, kb);
+      await send(actor.chatId, `${draftSummary(draft)}\n\n6. Izoh (yoki — bo'sh qoldirish uchun):`, kb);
       return true;
     }
     await send(actor.chatId, "<b>Ha</b> yoki <b>Yo'q</b> deb yozing:", kb);
@@ -188,10 +236,9 @@ export async function handleDraftStep(sb: Sb, actor: Extract<Actor, { type: "sta
   }
 
   if (draft.stage === "delivery_address") {
-    draft.data.delivery_type = "delivery";
     draft.data.delivery_address = text.trim().slice(0, 300);
     await saveDraft(sb, actor.chatId, "notes", draft.data);
-    await send(actor.chatId, `${draftSummary(draft)}\n\n5/5. Izoh (yoki — bo'sh qoldirish uchun):`, kb);
+    await send(actor.chatId, `${draftSummary(draft)}\n\n6. Izoh (yoki — bo'sh qoldirish uchun):`, kb);
     return true;
   }
 
@@ -200,14 +247,8 @@ export async function handleDraftStep(sb: Sb, actor: Extract<Actor, { type: "sta
     await saveDraft(sb, actor.chatId, "confirm", draft.data);
     await send(
       actor.chatId,
-      `${draftSummary(draft)}\n\nBuyurtmani yaratish uchun <b>Tasdiqlash</b> tugmasini bosing.`,
-      {
-        reply_markup: {
-          keyboard: [[{ text: "Tasdiqlash" }, { text: CANCEL }]],
-          resize_keyboard: true,
-          one_time_keyboard: true,
-        },
-      },
+      `${draftSummary(draft)}\n\nBarchasi to'g'rimi? Yaratish uchun <b>Tasdiqlash</b> tugmasini bosing.`,
+      { reply_markup: { keyboard: [[{ text: "Tasdiqlash" }, { text: CANCEL }]], resize_keyboard: true } }
     );
     return true;
   }
@@ -227,24 +268,21 @@ export async function handleDraftStep(sb: Sb, actor: Extract<Actor, { type: "sta
       delivery_address: draft.data.delivery_address ?? "",
       notes: draft.data.notes ?? "",
     };
+    
+    // Use the RPC to create order
     const { data: created, error } = await sb.rpc("erp_bot_create_order", {
       p: payload,
       p_chat_id: actor.chatId,
     });
+    
     if (error) {
-      const msg = String(error.message || "");
-      if (msg.includes("ITEM_UNAVAILABLE")) {
-        await send(actor.chatId, "Ba'zi uskunalar allaqachon band bo'lib qolgan. Buyurtma yaratilmadi — qaytadan boshlang: /neworder", { reply_markup: { remove_keyboard: true } });
-      } else if (msg.includes("CUSTOMER_REQUIRED")) {
-        await send(actor.chatId, "Mijoz topilmadi. Qaytadan boshlang: /neworder", { reply_markup: { remove_keyboard: true } });
-      } else {
-        await send(actor.chatId, "Xatolik yuz berdi. Qaytadan boshlang: /neworder", { reply_markup: { remove_keyboard: true } });
-      }
+      await send(actor.chatId, `Xatolik yuz berdi: ${error.message}\nQaytadan boshlang: /neworder`, { reply_markup: { remove_keyboard: true } });
       await clearDraft(sb, actor.chatId);
       return true;
     }
     const number = created?.order_number ?? "";
     await clearDraft(sb, actor.chatId);
+    
     const { data: card } = await sb.from("erp_orders").select("id").eq("order_number", number).maybeSingle();
     if (card) {
       const { notifyOrder } = await import("./jobs.ts");
@@ -252,8 +290,8 @@ export async function handleDraftStep(sb: Sb, actor: Extract<Actor, { type: "sta
     }
     await send(
       actor.chatId,
-      `✅ Buyurtma <b>${esc(number)}</b> yaratildi!\n\nOmbor xodimlariga xabar yuborildi. Buyurtma holatini "Mening buyurtmalarim" bo'limida kuzatib boring.`,
-      { reply_markup: { remove_keyboard: true } },
+      `✅ Buyurtma <b>${esc(number)}</b> yaratildi!\n\nOmbor xodimlariga xabar yuborildi. Buyurtmani dasturda ko'rishingiz mumkin.`,
+      { reply_markup: { remove_keyboard: true } }
     );
     return true;
   }

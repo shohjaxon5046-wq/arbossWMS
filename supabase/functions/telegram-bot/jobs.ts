@@ -228,6 +228,12 @@ export async function handleCallback(sb: Sb, cb: Callback, actor: Actor | null) 
     await tellSeller(sb, upd[0].order_id, `${actor.name}: ${SERVICE_STATUS[step.to]}`);
     return answer(`${step.label} ✓`);
   }
+
+  if (kind === "draft") {
+    const { handleDraftCallback } = await import("./draft.ts");
+    return handleDraftCallback(sb, cb, actor);
+  }
+
   return answer("Noma'lum amal.");
 }
 
