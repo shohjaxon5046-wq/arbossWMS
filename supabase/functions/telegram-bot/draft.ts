@@ -68,13 +68,20 @@ async function sendCategoryKeyboard(sb: Sb, chatId: string, editMsgId?: number) 
 }
 
 async function sendModelKeyboard(sb: Sb, chatId: string, catId: string, editMsgId: number) {
-  const { data } = await sb.from("erp_product_models")
-    .select("id, name, erp_product_items!inner(id)")
+  const { data: models } = await sb.from("erp_product_models")
+    .select("id, name")
     .eq("category_id", catId)
     .eq("is_active", true)
-    .eq("erp_product_items.status", "omborda_bosh")
     .order("name");
-  const buttons = (data || []).map(m => [{ text: m.name, callback_data: `draft:mod:${m.id}` }]);
+    
+  const { data: items } = await sb.from("erp_product_items")
+    .select("model_id")
+    .eq("status", "omborda_bosh");
+    
+  const availableIds = new Set((items || []).map(i => i.model_id));
+  const availableModels = (models || []).filter(m => availableIds.has(m.id));
+
+  const buttons = availableModels.map(m => [{ text: m.name, callback_data: `draft:mod:${m.id}` }]);
   buttons.push([{ text: "⬅️ Orqaga (Toifalar)", callback_data: "draft:back:cat" }]);
   await tg("editMessageText", { chat_id: chatId, message_id: editMsgId, text: "<b>2. Bo'sh uskunani tanlang:</b>", parse_mode: "HTML", ...inline(buttons) });
 }
@@ -131,13 +138,18 @@ export async function handleDraftCallback(sb: Sb, cb: Callback, actor: Actor) {
       // Since it might be a photo message, editMessageText fails if it's a photo.
       // So delete and send new.
       await tg("deleteMessage", { chat_id: actor.chatId, message_id: cb.message!.message_id });
-      const { data } = await sb.from("erp_product_models")
-        .select("id, name, erp_product_items!inner(id)")
+      const { data: models } = await sb.from("erp_product_models")
+        .select("id, name")
         .eq("category_id", catId)
         .eq("is_active", true)
-        .eq("erp_product_items.status", "omborda_bosh")
         .order("name");
-      const buttons = (data || []).map(m => [{ text: m.name, callback_data: `draft:mod:${m.id}` }]);
+      const { data: items } = await sb.from("erp_product_items")
+        .select("model_id")
+        .eq("status", "omborda_bosh");
+      const availableIds = new Set((items || []).map(i => i.model_id));
+      const availableModels = (models || []).filter(m => availableIds.has(m.id));
+
+      const buttons = availableModels.map(m => [{ text: m.name, callback_data: `draft:mod:${m.id}` }]);
       buttons.push([{ text: "⬅️ Orqaga (Toifalar)", callback_data: "draft:back:cat" }]);
       await send(actor.chatId, "<b>2. Bo'sh uskunani tanlang:</b>", inline(buttons));
     }
