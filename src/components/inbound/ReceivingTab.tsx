@@ -223,18 +223,48 @@ function EditReceiptModal({ po, modelName, onClose, onChange }: { po: PurchaseOr
 
   useEffect(() => { loadItems(); }, [loadItems]);
 
-  const handleDelete = async (itemId: string, serial: string) => {
+  const handleDelete = async (itemId: string, serial: string, modelId: string) => {
     if (!window.confirm(`Rostdan ham ushbu uskunani qabuldan olib tashlamoqchimisiz?\nSeriya raqami: ${serial}`)) return;
     setDeletingId(itemId);
     setError('');
-    const { error: err } = await supabase.rpc('erp_delete_received_item', { p_item_id: itemId });
-    setDeletingId(null);
-    if (err) {
-      setError(err.message.includes('ITEM_IN_USE') ? 'Uskuna ijarada yoki omborda emas, o\'chirib bo\'lmaydi.' : 'Xatolik yuz berdi: ' + err.message);
-      return;
+    
+    try {
+      // 1. Delete the item
+      const { error: err1 } = await supabase.from('erp_product_items').delete().eq('id', itemId);
+      if (err1) throw err1;
+
+      // 2. Fetch the PO line to decrement quantity
+      const { data: lines, error: err2 } = await supabase.from('erp_purchase_order_lines')
+        .select('*')
+        .eq('purchase_order_id', po.id)
+        .eq('model_id', modelId);
+      
+      if (err2) throw err2;
+      
+      if (lines && lines.length > 0) {
+        const line = lines[0];
+        // 3. Decrement quantity_received
+        const { error: err3 } = await supabase.from('erp_purchase_order_lines')
+          .update({ quantity_received: Math.max(0, line.quantity_received - 1) })
+          .eq('id', line.id);
+        if (err3) throw err3;
+      }
+
+      // 4. Update PO status to qisman_qabul if it was qabul_qilindi
+      if (po.status === 'qabul_qilindi') {
+        const { error: err4 } = await supabase.from('erp_purchase_orders')
+          .update({ status: 'qisman_qabul', updated_at: new Date().toISOString() })
+          .eq('id', po.id);
+        if (err4) throw err4;
+      }
+
+      await loadItems();
+      await onChange();
+    } catch (err: any) {
+      setError('Xatolik yuz berdi: ' + err.message);
+    } finally {
+      setDeletingId(null);
     }
-    await loadItems();
-    await onChange();
   };
 
   return (
@@ -255,7 +285,7 @@ function EditReceiptModal({ po, modelName, onClose, onChange }: { po: PurchaseOr
                   <p className="text-xs text-slate-500 font-mono mt-0.5">SN: {item.serial_number}</p>
                 </div>
                 <button
-                  onClick={() => handleDelete(item.id, item.serial_number)}
+                  onClick={() => handleDelete(item.id, item.serial_number, item.model_id)}
                   disabled={deletingId === item.id}
                   className="rounded-lg p-2 text-red-500 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 dark:hover:bg-red-900/20"
                   title="Qabuldan olib tashlash"
