@@ -9,7 +9,7 @@ import { FieldLabel, InlineNotice, type Notice } from '@/components/inbound/Inli
 import { CustomerPicker } from '@/components/orders/CustomerPicker';
 import { EquipmentPicker } from '@/components/orders/EquipmentPicker';
 import { ServiceLinesEditor, type ServiceLine } from '@/components/orders/ServiceLinesEditor';
-import { loadOrderBundle, ordersErrorKey, rentLineTotal } from '@/lib/orders';
+import { loadOrderBundle, ordersErrorKey, rentLineTotal, rentDiscountPct } from '@/lib/orders';
 import { printOrderReceipt } from '@/lib/receipt';
 import { callTelegramBot } from '@/lib/telegram';
 import type { CashRegister, Customer, ProductItem, ProductModel, ServicePartner } from '@/types';
@@ -106,29 +106,109 @@ export function CreateOrderModal({ open, onClose, onCreated }: Props) {
     setSaving(true);
     setNotice(null);
     try {
-      const { data, error } = await supabase.rpc('erp_create_order', {
-        p: {
-          customer_id: customer.id,
+      // 1. Generate order number
+      const orderNum = 'ORD-' + Math.floor(10000 + Math.random() * 90000).toString();
+
+      // 2. Create the main order
+      const { data: orderData, error: orderErr } = await supabase.from('erp_orders').insert({
+        order_number: orderNum,
+        customer_id: customer.id,
+        customer_name: customer.full_name,
+        customer_phone: customer.phone_primary,
+        status: 'yangi',
+        start_date: new Date().toISOString(),
+        expected_return_date: new Date(Date.now() + nDays * 86400000).toISOString(),
+        delivery_type: delivery,
+        delivery_address: delivery === 'delivery' ? address.trim() : '',
+        notes: notes.trim(),
+        total_rent_amount: totals.rent + totals.svc,
+        total_service_amount: totals.svc,
+        total_deposit_amount: totals.deposit,
+        discount_amount: totals.discount,
+        paid_amount: payNum,
+        debt_amount: totals.total - payNum
+      }).select('id').single();
+
+      if (orderErr) throw orderErr;
+      const orderId = orderData.id;
+
+      // 3. Insert items and update product status
+      for (const id of itemIds) {
+        const item = available.find(i => i.id === id);
+        const m = item && modelById.get(item.model_id);
+        if (!item || !m) continue;
+        
+        const disc = rentDiscountPct(m, nDays);
+        const line = rentLineTotal(m, nDays);
+
+        await supabase.from('erp_order_items').insert({
+          order_id: orderId,
+          product_item_id: item.id,
+          model_id: item.model_id,
+          model_name: m.name,
+          serial_number: item.serial_number,
           rent_days: nDays,
-          item_ids: itemIds,
-          delivery_type: delivery,
-          delivery_address: delivery === 'delivery' ? address.trim() : '',
-          notes: notes.trim(),
-          services: services.map(s => ({
-            category: s.category,
-            details: s.details.trim(),
-            partner_id: s.partner_id || null,
-            customer_price: Number(s.customer_price) || 0,
-            partner_cost: Number(s.partner_cost) || 0,
-            address: (s.address || address).trim(),
-            scheduled_time: s.scheduled_time ? s.scheduled_time.replace('T', ' ') : '',
-          })),
-          payment: { amount: payNum, type: payType, register_id: payNum > 0 ? registerId || null : null },
-        },
-      });
-      if (error) throw error;
-      const orderId = (data as { id?: string } | null)?.id;
-      if (!orderId) throw new Error('NO_ID');
+          daily_price: m.daily_price,
+          deposit_amount: m.deposit_amount,
+          discount_pct: disc,
+          line_total: line
+        });
+
+        await supabase.from('erp_product_items').update({
+          status: 'ijarada',
+          current_order_id: orderId,
+          updated_at: new Date().toISOString()
+        }).eq('id', item.id);
+      }
+
+      // 4. Insert services
+      for (let i = 0; i < services.length; i++) {
+        const s = services[i];
+        const sPrice = Number(s.customer_price) || 0;
+        const sCost = Number(s.partner_cost) || 0;
+        await supabase.from('erp_service_orders').insert({
+          order_id: orderId,
+          order_number: `${orderNum}-S${i + 1}`,
+          customer_id: customer.id,
+          customer_name: customer.full_name,
+          customer_phone: customer.phone_primary,
+          assigned_partner_id: s.partner_id || null,
+          service_category: s.category,
+          service_details: s.details.trim(),
+          order_status: 'yangi',
+          customer_total_price: sPrice,
+          partner_cost: sCost,
+          net_profit: sPrice - sCost,
+          address: (s.address || address).trim(),
+          scheduled_time: s.scheduled_time ? s.scheduled_time.replace('T', ' ') : null,
+        });
+
+        if (s.partner_id) {
+          await supabase.from('erp_service_partners').update({
+            is_available: false, status: 'band'
+          }).eq('id', s.partner_id);
+        }
+      }
+
+      // 5. Payments
+      if (payNum > 0 && registerId) {
+        await supabase.from('erp_order_payments').insert({
+          order_id: orderId,
+          amount: payNum,
+          payment_type: payType,
+          cash_register_id: registerId,
+          date: new Date().toISOString()
+        });
+        
+        // Update register balance
+        const reg = registers.find(r => r.id === registerId);
+        if (reg) {
+          await supabase.from('erp_cash_registers').update({
+            current_balance: Number(reg.current_balance || 0) + payNum
+          }).eq('id', registerId);
+        }
+      }
+
       callTelegramBot('notify_order', { order_id: orderId }).catch(() => {});
       if (print) {
         try {
