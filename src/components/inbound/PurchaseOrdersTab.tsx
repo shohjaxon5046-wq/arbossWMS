@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Plus, Trash2, ClipboardList, Loader2, Send, Ban, PackageCheck, Search, CalendarDays, PackageSearch } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Plus, Trash2, ClipboardList, Loader2, Send, Ban, PackageCheck, Search, CalendarDays, PackageSearch, FileSpreadsheet, Download } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,6 +9,7 @@ import { EmptyState } from '@/components/ui/States';
 import { Modal, ConfirmDialog } from '@/components/ui/Modal';
 import { InlineNotice, FieldLabel, type Notice } from '@/components/inbound/InlineNotice';
 import { ProductSearchModal } from '@/components/inbound/ProductSearchModal';
+import { readFirstSheet, normalizeKeys, downloadPurchaseOrderTemplate } from '@/lib/excel';
 import type { InboundData, ProductModel, PurchaseOrder } from '@/types';
 import type { TranslationKey } from '@/lib/i18n';
 
@@ -36,6 +37,8 @@ export function PurchaseOrdersTab({ data, canManage, reload, onGoToReceiving }: 
   const [cancelTarget, setCancelTarget] = useState<PurchaseOrder | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const supplierName = (id: string) => data.suppliers.find(s => s.id === id)?.name ?? '—';
   const modelName = (id: string) => data.models.find(m => m.id === id)?.name ?? '—';
@@ -46,6 +49,49 @@ export function PurchaseOrdersTab({ data, canManage, reload, onGoToReceiving }: 
     setLines([{ ...emptyLine }]);
     setFormError('');
     setCreateOpen(true);
+  };
+
+  const handleImportExcel = async (file: File) => {
+    setImporting(true);
+    setFormError('');
+    try {
+      const raw = await readFirstSheet(file);
+      const rows = normalizeKeys(raw);
+      
+      const newLines: LineDraft[] = [];
+      let notFoundCount = 0;
+      
+      for (const row of rows) {
+        const code = (row.model_code || '').trim();
+        const quantity = String(row.quantity || '1').trim();
+        const price = String(row.unit_price || '').trim();
+        
+        if (!code) continue;
+        
+        const model = data.models.find(m => m.model_code?.toLowerCase() === code.toLowerCase() && m.is_active);
+        if (model) {
+          newLines.push({ model_id: model.id, quantity, unit_price: price || (model.daily_price ? String(model.daily_price) : '') });
+        } else {
+          notFoundCount++;
+        }
+      }
+      
+      if (newLines.length > 0) {
+        setLines(prev => {
+          const current = prev.filter(l => l.model_id);
+          return [...current, ...newLines];
+        });
+        if (notFoundCount > 0) {
+          setFormError(`${notFoundCount} ta model kodi topilmadi. Qolganlari qo'shildi.`);
+        }
+      } else {
+        setFormError('Fayldan hech qanday to\'g\'ri model topilmadi (model_kodi ustunini tekshiring).');
+      }
+    } catch {
+      setFormError('Faylni o\'qishda xatolik yuz berdi.');
+    } finally {
+      setImporting(false);
+    }
   };
 
   const updateLine = (idx: number, patch: Partial<LineDraft>) =>
@@ -185,9 +231,24 @@ export function PurchaseOrdersTab({ data, canManage, reload, onGoToReceiving }: 
           <div>
             <div className="mb-2 flex items-center justify-between">
               <FieldLabel>{t('orderLines')} *</FieldLabel>
-              <button onClick={() => setPickerOpen(true)} className="btn-secondary px-3 py-1.5 text-sm">
-                <PackageSearch className="h-4 w-4" /> {t('addProduct')}
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={downloadPurchaseOrderTemplate} title="Namuna yuklab olish" className="btn-secondary px-3 py-1.5 text-sm" type="button">
+                  <Download className="h-4 w-4" />
+                </button>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv"
+                  className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleImportExcel(f); e.target.value = ''; }}
+                />
+                <button onClick={() => fileRef.current?.click()} disabled={importing} className="btn-secondary px-3 py-1.5 text-sm" type="button">
+                  {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileSpreadsheet className="h-4 w-4" />} Excel
+                </button>
+                <button onClick={() => setPickerOpen(true)} className="btn-secondary px-3 py-1.5 text-sm" type="button">
+                  <PackageSearch className="h-4 w-4" /> {t('addProduct')}
+                </button>
+              </div>
             </div>
             <div className="space-y-2">
               {lines.map((l, idx) => (

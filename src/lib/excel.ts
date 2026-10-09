@@ -62,6 +62,12 @@ const KEY_ALIASES: Record<string, string> = {
   model_code: 'model_code',
   model_kodi: 'model_code',
   kodi: 'model_code',
+  quantity: 'quantity',
+  soni: 'quantity',
+  miqdori: 'quantity',
+  unit_price: 'unit_price',
+  dona_narxi: 'unit_price',
+  kelish_narxi: 'unit_price',
 };
 
 export function normalizeKeys(rows: SheetRow[]): Record<string, string>[] {
@@ -97,4 +103,16 @@ export function downloadProductsTemplate() {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Mahsulotlar');
   XLSX.writeFile(wb, 'mahsulotlar_namuna.xlsx');
+}
+
+export function downloadPurchaseOrderTemplate() {
+  const rows: (string | number)[][] = [
+    ['model_kodi', 'nomi', 'soni', 'dona_narxi'],
+    ['GBH-2-26', 'Perforator Bosch', 10, 500000],
+    ['HM-0810', 'Bolg\'a Makita', 5, 800000],
+  ];
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Buyurtma');
+  XLSX.writeFile(wb, 'buyurtma_namuna.xlsx');
 }
