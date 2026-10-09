@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Printer, Truck, Store } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useApp } from '@/contexts/AppContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { formatCurrency } from '@/lib/format';
 import { Modal } from '@/components/ui/Modal';
 import { LoadingSpinner } from '@/components/ui/States';
@@ -34,6 +35,7 @@ function Section({ n, title, children }: { n: number; title: string; children: R
 
 export function CreateOrderModal({ open, onClose, onCreated }: Props) {
   const { t } = useApp();
+  const { staff } = useAuth();
   const [loading, setLoading] = useState(true);
   const [models, setModels] = useState<ProductModel[]>([]);
   const [available, setAvailable] = useState<ProductItem[]>([]);
@@ -126,7 +128,9 @@ export function CreateOrderModal({ open, onClose, onCreated }: Props) {
         total_deposit_amount: totals.deposit,
         discount_amount: totals.discount,
         paid_amount: payNum,
-        debt_amount: totals.total - payNum
+        debt_amount: totals.total - payNum,
+        created_by: staff?.full_name || '',
+        created_by_user_id: staff?.user_id
       }).select('id').single();
 
       if (orderErr) throw orderErr;
@@ -181,6 +185,7 @@ export function CreateOrderModal({ open, onClose, onCreated }: Props) {
           net_profit: sPrice - sCost,
           address: (s.address || address).trim(),
           scheduled_time: s.scheduled_time ? s.scheduled_time.replace('T', ' ') : null,
+          created_by: staff?.full_name || ''
         });
 
         if (s.partner_id) {
@@ -197,7 +202,8 @@ export function CreateOrderModal({ open, onClose, onCreated }: Props) {
           amount: payNum,
           payment_type: payType,
           cash_register_id: registerId,
-          date: new Date().toISOString()
+          date: new Date().toISOString(),
+          created_by: staff?.full_name || ''
         });
         
         // Update register balance
