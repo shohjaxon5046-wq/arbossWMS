@@ -132,7 +132,7 @@ export function ReturnsTab({ data, canManage, reload }: Props) {
                 <p className="mt-2 flex items-center gap-1.5 text-sm text-slate-600 dark:text-slate-300"><Truck className="h-3.5 w-3.5 text-slate-400" /> {supplierName(r.supplier_id)}</p>
                 <p className="mt-1 line-clamp-2 text-sm text-slate-500">{r.reason}</p>
                 <div className="mt-3 flex justify-between text-xs text-slate-400">
-                  <span>{r.erp_supplier_return_items.length} {t('pcs')}</span>
+                  <span>{r.erp_supplier_return_items?.length || 0} {t('pcs')}</span>
                   <span>{formatDate(r.created_at)}</span>
                 </div>
               </button>
@@ -193,7 +193,7 @@ export function ReturnsTab({ data, canManage, reload }: Props) {
             <div>
               <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">{t('itemsInReturn')}</p>
               <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200 dark:divide-slate-800 dark:border-slate-800">
-                {detail.erp_supplier_return_items.map(ri => {
+                {(detail.erp_supplier_return_items || []).map(ri => {
                   const item = data.items.find(i => i.id === ri.product_item_id);
                   return (
                     <li key={ri.product_item_id} className="flex justify-between gap-2 px-3 py-2 text-sm">

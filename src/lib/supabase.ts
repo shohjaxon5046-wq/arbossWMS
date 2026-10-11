@@ -149,6 +149,153 @@ class LocalStore {
 
 const localStore = new LocalStore();
 
+function getProp(obj: any, path: string): any {
+  if (!obj || !path) return undefined;
+  if (obj[path] !== undefined) return obj[path];
+  const parts = path.split('.');
+  let curr = obj;
+  for (const p of parts) {
+    if (curr == null) return undefined;
+    curr = curr[p];
+  }
+  return curr;
+}
+
+// Dedicated mutation builder supporting .eq().select().maybeSingle() chains and direct await
+class MockMutationBuilder {
+  private table: string;
+  private action: 'insert' | 'update' | 'delete' | 'upsert';
+  private payload: any;
+  private filters: Array<(row: any) => boolean> = [];
+  private singleResult: boolean = false;
+  private fieldsToSelect: string = '*';
+
+  constructor(table: string, action: 'insert' | 'update' | 'delete' | 'upsert', payload?: any) {
+    this.table = table;
+    this.action = action;
+    this.payload = payload;
+  }
+
+  select(fields = '*') {
+    this.fieldsToSelect = fields;
+    return this;
+  }
+
+  eq(column: string, value: any) {
+    this.filters.push(row => getProp(row, column) === value);
+    return this;
+  }
+
+  neq(column: string, value: any) {
+    this.filters.push(row => getProp(row, column) !== value);
+    return this;
+  }
+
+  in(column: string, values: any[]) {
+    this.filters.push(row => Array.isArray(values) && values.includes(getProp(row, column)));
+    return this;
+  }
+
+  is(column: string, value: any) {
+    this.filters.push(row => {
+      const val = getProp(row, column);
+      if (value === null) return val === null || val === undefined;
+      return val === value;
+    });
+    return this;
+  }
+
+  single() {
+    this.singleResult = true;
+    return this;
+  }
+
+  maybeSingle() {
+    this.singleResult = true;
+    return this;
+  }
+
+  async execute(): Promise<{ data: any; error: any }> {
+    try {
+      if (this.action === 'insert') {
+        const items = Array.isArray(this.payload) ? this.payload : [this.payload];
+        const current = localStore.getTable(this.table);
+        const stamped = items.map(item => ({
+          id: item.id || `gen-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          created_at: item.created_at || new Date().toISOString(),
+          updated_at: item.updated_at || new Date().toISOString(),
+          ...item,
+        }));
+        const updated = [...current, ...stamped];
+        localStore.saveTable(this.table, updated);
+        const result = Array.isArray(this.payload) ? stamped : stamped[0];
+        return { data: this.singleResult ? (stamped[0] ?? null) : result, error: null };
+      }
+
+      if (this.action === 'update') {
+        const current = localStore.getTable(this.table);
+        const modified: any[] = [];
+        const updated = current.map(row => {
+          const match = this.filters.length === 0 || this.filters.every(f => f(row));
+          if (match) {
+            const mod = { ...row, ...this.payload, updated_at: new Date().toISOString() };
+            modified.push(mod);
+            return mod;
+          }
+          return row;
+        });
+        localStore.saveTable(this.table, updated);
+        return { data: this.singleResult ? (modified[0] ?? null) : modified, error: null };
+      }
+
+      if (this.action === 'delete') {
+        const current = localStore.getTable(this.table);
+        const updated = current.filter(row => !this.filters.every(f => f(row)));
+        localStore.saveTable(this.table, updated);
+        return { data: true, error: null };
+      }
+
+      if (this.action === 'upsert') {
+        const items = Array.isArray(this.payload) ? this.payload : [this.payload];
+        const current = localStore.getTable(this.table);
+        for (const item of items) {
+          const keyCol = item.key ? 'key' : 'id';
+          const idx = current.findIndex(r => r[keyCol] === item[keyCol]);
+          if (idx >= 0) {
+            current[idx] = { ...current[idx], ...item, updated_at: new Date().toISOString() };
+          } else {
+            current.push({
+              id: item.id || `gen-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+              created_at: new Date().toISOString(),
+              ...item,
+            });
+          }
+        }
+        localStore.saveTable(this.table, current);
+        return { data: this.payload, error: null };
+      }
+
+      return { data: null, error: null };
+    } catch (err: any) {
+      console.error(`Mock mutation error [${this.table}]:`, err);
+      return { data: null, error: { message: err?.message || 'Database error' } };
+    }
+  }
+
+  then<TResult1 = any, TResult2 = never>(
+    onfulfilled?: ((value: { data: any; error: any }) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null
+  ): Promise<TResult1 | TResult2> {
+    return this.execute().then(onfulfilled, onrejected);
+  }
+
+  catch<TResult = never>(
+    onrejected?: ((reason: any) => TResult | PromiseLike<TResult>) | null
+  ): Promise<any | TResult> {
+    return this.execute().catch(onrejected);
+  }
+}
+
 // Query Builder Mock that supports chained calls
 class MockQueryBuilder {
   private table: string;
@@ -171,24 +318,24 @@ class MockQueryBuilder {
   }
 
   eq(column: string, value: any) {
-    this.filters.push(row => row[column] === value);
+    this.filters.push(row => getProp(row, column) === value);
     return this;
   }
 
   neq(column: string, value: any) {
-    this.filters.push(row => row[column] !== value);
+    this.filters.push(row => getProp(row, column) !== value);
     return this;
   }
 
   in(column: string, values: any[]) {
-    this.filters.push(row => values.includes(row[column]));
+    this.filters.push(row => Array.isArray(values) && values.includes(getProp(row, column)));
     return this;
   }
 
   ilike(column: string, pattern: string) {
     const cleanPattern = pattern.replace(/%/g, '').toLowerCase();
     this.filters.push(row => {
-      const val = String(row[column] ?? '').toLowerCase();
+      const val = String(getProp(row, column) ?? '').toLowerCase();
       return val.includes(cleanPattern);
     });
     return this;
@@ -197,7 +344,7 @@ class MockQueryBuilder {
   like(column: string, pattern: string) {
     const cleanPattern = pattern.replace(/%/g, '');
     this.filters.push(row => {
-      const val = String(row[column] ?? '');
+      const val = String(getProp(row, column) ?? '');
       return val.includes(cleanPattern);
     });
     return this;
@@ -205,7 +352,7 @@ class MockQueryBuilder {
 
   is(column: string, value: any) {
     this.filters.push(row => {
-      const val = row[column];
+      const val = getProp(row, column);
       if (value === null) return val === null || val === undefined;
       return val === value;
     });
@@ -214,7 +361,7 @@ class MockQueryBuilder {
 
   not(column: string, operator: string, value: any) {
     this.filters.push(row => {
-      const rowVal = row[column];
+      const rowVal = getProp(row, column);
       if (operator === 'is') {
         if (value === null) return rowVal !== null && rowVal !== undefined;
         return rowVal !== value;
@@ -247,7 +394,7 @@ class MockQueryBuilder {
         const op = dot2 === -1 ? rest : rest.slice(0, dot2);
         const rawVal = dot2 === -1 ? '' : rest.slice(dot2 + 1);
 
-        const rowVal = row[column];
+        const rowVal = getProp(row, column);
 
         switch (op) {
           case 'ilike': {
@@ -289,28 +436,28 @@ class MockQueryBuilder {
   }
 
   gt(column: string, value: any) {
-    this.filters.push(row => Number(row[column]) > Number(value));
+    this.filters.push(row => Number(getProp(row, column)) > Number(value));
     return this;
   }
 
   gte(column: string, value: any) {
-    this.filters.push(row => Number(row[column]) >= Number(value));
+    this.filters.push(row => Number(getProp(row, column)) >= Number(value));
     return this;
   }
 
   lt(column: string, value: any) {
-    this.filters.push(row => Number(row[column]) < Number(value));
+    this.filters.push(row => Number(getProp(row, column)) < Number(value));
     return this;
   }
 
   lte(column: string, value: any) {
-    this.filters.push(row => Number(row[column]) <= Number(value));
+    this.filters.push(row => Number(getProp(row, column)) <= Number(value));
     return this;
   }
 
   contains(column: string, value: any) {
     this.filters.push(row => {
-      const rowVal = row[column];
+      const rowVal = getProp(row, column);
       if (Array.isArray(rowVal) && Array.isArray(value)) {
         return value.every(v => rowVal.includes(v));
       }
@@ -355,13 +502,57 @@ class MockQueryBuilder {
   }
 
   private async execute(): Promise<{ data: any; error: any }> {
-    const all = [...localStore.getTable(this.table)];
+    let all = [...localStore.getTable(this.table)];
+
+    // Populate relational joins before filtering to enable relational filter queries
+    if (this.table === 'erp_product_items') {
+      const models = localStore.getTable('erp_product_models');
+      const modelMap = new Map(models.map(m => [m.id, m]));
+      all = all.map(item => ({
+        ...item,
+        erp_product_models: item.erp_product_models || (item.model_id ? modelMap.get(item.model_id) : null),
+      }));
+    } else if (this.table === 'erp_service_orders') {
+      const orders = localStore.getTable('erp_orders');
+      const orderMap = new Map(orders.map(o => [o.id, o]));
+      all = all.map(so => ({
+        ...so,
+        erp_orders: so.erp_orders || (so.order_id ? orderMap.get(so.order_id) : null),
+      }));
+    } else if (this.table === 'erp_order_payments') {
+      const orders = localStore.getTable('erp_orders');
+      const orderMap = new Map(orders.map(o => [o.id, o]));
+      all = all.map(p => ({
+        ...p,
+        erp_orders: p.erp_orders || (p.order_id ? orderMap.get(p.order_id) : null),
+      }));
+    } else if (this.table === 'erp_purchase_orders') {
+      const allLines = localStore.getTable('erp_purchase_order_lines');
+      all = all.map(po => ({
+        ...po,
+        erp_purchase_order_lines: Array.isArray(po.erp_purchase_order_lines) && po.erp_purchase_order_lines.length > 0
+          ? po.erp_purchase_order_lines
+          : allLines.filter(l => l.purchase_order_id === po.id),
+      }));
+    } else if (this.table === 'erp_supplier_returns') {
+      all = all.map(ret => ({
+        ...ret,
+        erp_supplier_return_items: Array.isArray(ret.erp_supplier_return_items) ? ret.erp_supplier_return_items : [],
+      }));
+    } else if (this.table === 'erp_orders') {
+      const services = localStore.getTable('erp_service_orders');
+      all = all.map(o => ({
+        ...o,
+        services: Array.isArray(o.services) ? o.services : services.filter(s => s.order_id === o.id),
+      }));
+    }
+
     let result = all.filter(row => this.filters.every(f => f(row)));
 
     if (this.orderField) {
       result.sort((a, b) => {
-        const valA = a[this.orderField!];
-        const valB = b[this.orderField!];
+        const valA = getProp(a, this.orderField!);
+        const valB = getProp(b, this.orderField!);
         if (valA === valB) return 0;
         if (valA === null || valA === undefined) return 1;
         if (valB === null || valB === undefined) return -1;
@@ -376,24 +567,6 @@ class MockQueryBuilder {
       result = result.slice(0, this.limitCount);
     }
 
-    if (this.table === 'erp_product_items') {
-      const models = localStore.getTable('erp_product_models');
-      const modelMap = new Map(models.map(m => [m.id, m]));
-      result = result.map(item => ({
-        ...item,
-        erp_product_models: item.erp_product_models || (item.model_id ? modelMap.get(item.model_id) : null),
-      }));
-    }
-
-    if (this.table === 'erp_service_orders') {
-      const orders = localStore.getTable('erp_orders');
-      const orderMap = new Map(orders.map(o => [o.id, o]));
-      result = result.map(so => ({
-        ...so,
-        erp_orders: so.erp_orders || (so.order_id ? orderMap.get(so.order_id) : null),
-      }));
-    }
-
     if (this.singleResult) {
       return { data: result[0] ?? null, error: null };
     }
@@ -401,113 +574,20 @@ class MockQueryBuilder {
     return { data: result, error: null };
   }
 
-  async insert(values: any | any[]) {
-    const items = Array.isArray(values) ? values : [values];
-    const current = localStore.getTable(this.table);
-    const stamped = items.map(item => ({
-      id: item.id || `gen-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      created_at: item.created_at || new Date().toISOString(),
-      updated_at: item.updated_at || new Date().toISOString(),
-      ...item,
-    }));
-    const updated = [...current, ...stamped];
-    localStore.saveTable(this.table, updated);
-
-    return {
-      data: Array.isArray(values) ? stamped : stamped[0],
-      error: null,
-      select: () => ({
-        single: async () => ({ data: stamped[0], error: null }),
-        maybeSingle: async () => ({ data: stamped[0], error: null }),
-        then: (fn: any) => Promise.resolve({ data: stamped, error: null }).then(fn),
-      }),
-    };
+  insert(values: any | any[]) {
+    return new MockMutationBuilder(this.table, 'insert', values);
   }
 
   update(values: any) {
-    const table = this.table;
-    const mutate = (predicate: (row: any) => boolean) => {
-      const current = localStore.getTable(table);
-      const modified: any[] = [];
-      const updated = current.map(row => {
-        if (predicate(row)) {
-          const mod = { ...row, ...values, updated_at: new Date().toISOString() };
-          modified.push(mod);
-          return mod;
-        }
-        return row;
-      });
-      localStore.saveTable(table, updated);
-      return {
-        data: modified,
-        error: null,
-        select: () => ({
-          single: async () => ({ data: modified[0] ?? null, error: null }),
-          maybeSingle: async () => ({ data: modified[0] ?? null, error: null }),
-          then: (fn: any) => Promise.resolve({ data: modified, error: null }).then(fn),
-        }),
-      };
-    };
-
-    return {
-      eq: (column: string, targetVal: any) => {
-        const res = mutate(row => row[column] === targetVal);
-        return Promise.resolve(res);
-      },
-      in: (column: string, targets: any[]) => {
-        const res = mutate(row => targets.includes(row[column]));
-        return Promise.resolve(res);
-      },
-      then: (fn: any) => Promise.resolve(mutate(() => true)).then(fn),
-    };
+    return new MockMutationBuilder(this.table, 'update', values);
   }
 
   delete() {
-    const table = this.table;
-    const mutate = (predicate: (row: any) => boolean) => {
-      const current = localStore.getTable(table);
-      const updated = current.filter(row => !predicate(row));
-      localStore.saveTable(table, updated);
-      return {
-        data: true,
-        error: null,
-        select: () => ({
-          then: (fn: any) => Promise.resolve({ data: true, error: null }).then(fn),
-        }),
-      };
-    };
-
-    return {
-      eq: (column: string, targetVal: any) => {
-        const res = mutate(row => row[column] === targetVal);
-        return Promise.resolve(res);
-      },
-      in: (column: string, targets: any[]) => {
-        const res = mutate(row => targets.includes(row[column]));
-        return Promise.resolve(res);
-      },
-      then: (fn: any) => Promise.resolve(mutate(() => true)).then(fn),
-    };
+    return new MockMutationBuilder(this.table, 'delete');
   }
 
-  async upsert(values: any | any[]) {
-    const items = Array.isArray(values) ? values : [values];
-    const current = localStore.getTable(this.table);
-    for (const item of items) {
-      const keyCol = item.key ? 'key' : 'id';
-      const idx = current.findIndex(r => r[keyCol] === item[keyCol]);
-      if (idx >= 0) {
-        current[idx] = { ...current[idx], ...item, updated_at: new Date().toISOString() };
-      } else {
-        current.push({
-          id: item.id || `gen-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          created_at: new Date().toISOString(),
-          ...item,
-        });
-      }
-    }
-    localStore.saveTable(this.table, current);
-    return { data: values, error: null };
+  upsert(values: any | any[]) {
+    return new MockMutationBuilder(this.table, 'upsert', values);
   }
 }
 
@@ -524,10 +604,11 @@ function createMockClient() {
             const items = localStore.getTable('erp_product_items');
             if (Array.isArray(p_entries)) {
               for (const entry of p_entries) {
-                const item = items.find(i => i.id === entry.product_item_id);
+                const item = items.find(i => i.id === entry.product_item_id || i.id === entry.item_id);
                 if (item) {
-                  item.warehouse_location_id = entry.warehouse_location_id;
+                  item.warehouse_location_id = entry.warehouse_location_id || entry.location_id;
                   item.warehouse_location_shelf = entry.shelf_code || '';
+                  if (entry.serial) item.serial_number = entry.serial;
                   item.status = 'omborda_bosh';
                   item.updated_at = new Date().toISOString();
                 }
@@ -541,26 +622,41 @@ function createMockClient() {
             const { p_po_id, p_lines } = args;
             const pos = localStore.getTable('erp_purchase_orders');
             const items = localStore.getTable('erp_product_items');
+            const allLines = localStore.getTable('erp_purchase_order_lines');
             const po = pos.find(p => p.id === p_po_id);
             if (po && Array.isArray(p_lines)) {
+              const poLines = Array.isArray(po.erp_purchase_order_lines) && po.erp_purchase_order_lines.length > 0
+                ? po.erp_purchase_order_lines
+                : allLines.filter(l => l.purchase_order_id === po.id);
+
               for (const line of p_lines) {
-                const pol = po.erp_purchase_order_lines?.find((l: any) => l.model_id === line.model_id);
+                const pol = poLines.find((l: any) => l.id === line.line_id || l.model_id === line.model_id);
+                const goodQty = line.good !== undefined ? Number(line.good) : Number(line.quantity || 1);
+                const defectiveQty = Number(line.defective || 0);
+                const totalReceived = goodQty + defectiveQty;
+
                 if (pol) {
-                  pol.quantity_received = (pol.quantity_received || 0) + (line.quantity || 1);
+                  pol.quantity_received = (Number(pol.quantity_received) || 0) + totalReceived;
                 }
-                const serials = Array.isArray(line.serials) ? line.serials : [`SN-${Date.now().toString().slice(-4)}`];
-                for (const sn of serials) {
+
+                const modelId = pol?.model_id || line.model_id;
+                const unitPrice = pol?.unit_price || line.unit_price || 0;
+
+                // Create items for good received units
+                for (let i = 0; i < goodQty; i++) {
+                  const randSn = `ARB-${Date.now().toString().slice(-4)}${Math.floor(100 + Math.random() * 900)}`;
+                  const sn = (Array.isArray(line.serials) && line.serials[i]) ? line.serials[i] : randSn;
                   items.push({
                     id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-                    model_id: line.model_id,
+                    model_id: modelId,
                     serial_number: sn,
-                    barcode: `ARB-${sn}`,
+                    barcode: sn,
                     status: 'joylashtirish_kutilmoqda',
                     warehouse_location_id: null,
                     warehouse_location_shelf: '',
                     current_order_id: null,
                     purchase_date: new Date().toISOString().split('T')[0],
-                    purchase_price: line.unit_price || 0,
+                    purchase_price: Number(unitPrice),
                     supplier_id: po.supplier_id,
                     purchase_order_id: po.id,
                     defect_reason: '',
@@ -575,8 +671,13 @@ function createMockClient() {
                   });
                 }
               }
-              po.status = 'qabul_qilindi';
+
+              // Update PO status
+              const allFinished = poLines.every((l: any) => (Number(l.quantity_received) || 0) >= (Number(l.quantity_ordered) || 1));
+              po.status = allFinished ? 'qabul_qilindi' : 'qisman_qabul';
+              po.erp_purchase_order_lines = poLines;
               localStore.saveTable('erp_purchase_orders', pos);
+              localStore.saveTable('erp_purchase_order_lines', allLines);
               localStore.saveTable('erp_product_items', items);
             }
             return { data: true, error: null };
@@ -609,7 +710,9 @@ function createMockClient() {
           }
 
           case 'erp_add_order_payment': {
-            const { p_order_id, p_amount, p_payment_type, p_cash_register_id, p_notes } = args;
+            const { p_order_id, p_amount, p_payment_type, p_type, p_cash_register_id, p_register_id, p_notes } = args;
+            const payType = p_payment_type || p_type || 'naqd';
+            const registerId = p_cash_register_id || p_register_id || null;
             const orders = localStore.getTable('erp_orders');
             const payments = localStore.getTable('erp_order_payments');
             const registers = localStore.getTable('erp_cash_registers');
@@ -623,16 +726,16 @@ function createMockClient() {
               id: `pay-${Date.now()}`,
               order_id: p_order_id,
               amount: Number(p_amount),
-              payment_type: p_payment_type || 'naqd',
-              cash_register_id: p_cash_register_id || null,
+              payment_type: payType,
+              cash_register_id: registerId,
               date: new Date().toISOString(),
               notes: p_notes || '',
               created_by: 'Kassir',
               created_at: new Date().toISOString(),
             });
             localStore.saveTable('erp_order_payments', payments);
-            if (p_cash_register_id) {
-              const reg = registers.find(r => r.id === p_cash_register_id);
+            if (registerId) {
+              const reg = registers.find(r => r.id === registerId);
               if (reg) {
                 reg.current_balance = (Number(reg.current_balance) || 0) + Number(p_amount);
                 localStore.saveTable('erp_cash_registers', registers);

@@ -304,7 +304,7 @@ export function PurchaseOrdersTab({ data, canManage, reload, onGoToReceiving }: 
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {detail.erp_purchase_order_lines.map(l => (
+                    {(detail.erp_purchase_order_lines || []).map(l => (
                       <tr key={l.id}>
                         <td className="table-cell font-medium">{modelName(l.model_id)}</td>
                         <td className="table-cell text-right">{l.quantity_ordered}</td>

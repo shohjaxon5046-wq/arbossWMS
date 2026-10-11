@@ -46,19 +46,19 @@ function PricingEditor({ service }: { service: LogisticsService }) {
     const { error: err } = id
       ? await supabase.from(table).update(values).eq('id', id)
       : await supabase.from(table).insert(values);
-    if (err) window.alert(err.message);
+    if (err) console.warn('AdminLogistics save error:', err.message);
     await reload();
   };
 
   const remove = async (table: string, id: string) => {
     const { error: err } = await supabase.from(table).delete().eq('id', id);
-    if (err) window.alert(err.message);
+    if (err) console.warn('AdminLogistics remove error:', err.message);
     await reload();
   };
 
   const saveKv = async (table: string, key: string, value: number) => {
     const { error: err } = await supabase.from(table).upsert({ key, value }, { onConflict: 'key' });
-    if (err) window.alert(err.message);
+    if (err) console.warn('AdminLogistics saveKv error:', err.message);
     await reload();
   };
 

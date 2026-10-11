@@ -28,11 +28,11 @@ export function generateDocNumber(prefix: string): string {
 }
 
 export function orderTotals(o: PurchaseOrder) {
-  const lines = o.erp_purchase_order_lines;
+  const lines = Array.isArray(o?.erp_purchase_order_lines) ? o.erp_purchase_order_lines : [];
   return {
-    ordered: lines.reduce((s, l) => s + l.quantity_ordered, 0),
-    received: lines.reduce((s, l) => s + l.quantity_received, 0),
-    sum: lines.reduce((s, l) => s + l.quantity_ordered * Number(l.unit_price), 0),
+    ordered: lines.reduce((s, l) => s + (Number(l.quantity_ordered) || 0), 0),
+    received: lines.reduce((s, l) => s + (Number(l.quantity_received) || 0), 0),
+    sum: lines.reduce((s, l) => s + (Number(l.quantity_ordered) || 0) * (Number(l.unit_price) || 0), 0),
   };
 }
 

@@ -40,7 +40,7 @@ export function ReceivingTab({ data, canManage, reload, onGoToPutaway }: Props) 
 
   const start = (o: PurchaseOrder) => {
     const init: Record<string, Entry> = {};
-    o.erp_purchase_order_lines.forEach(l => {
+    (o.erp_purchase_order_lines || []).forEach(l => {
       init[l.id] = { good: String(l.quantity_ordered - l.quantity_received), defective: '0', reason: '' };
     });
     setEntries(init);
@@ -52,7 +52,7 @@ export function ReceivingTab({ data, canManage, reload, onGoToPutaway }: Props) 
 
   const submit = async () => {
     if (!active) return;
-    const payload = active.erp_purchase_order_lines.map(l => {
+    const payload = (active.erp_purchase_order_lines || []).map(l => {
       const remaining = l.quantity_ordered - l.quantity_received;
       const e = entries[l.id];
       const good = clampInt(e?.good ?? '0', remaining);
@@ -95,7 +95,7 @@ export function ReceivingTab({ data, canManage, reload, onGoToPutaway }: Props) 
                   <span className={`badge ${getStatusColor(o.status)}`}>{t(o.status as TranslationKey)}</span>
                 </div>
                 <ul className="mt-4 flex-1 space-y-1.5 text-sm">
-                  {o.erp_purchase_order_lines.map(l => (
+                  {(o.erp_purchase_order_lines || []).map(l => (
                     <li key={l.id} className="flex justify-between gap-2">
                       <span className="truncate text-slate-600 dark:text-slate-300">{modelName(l.model_id)}</span>
                       <span className="flex-shrink-0 text-slate-500">{l.quantity_received}/{l.quantity_ordered}</span>
@@ -120,7 +120,7 @@ export function ReceivingTab({ data, canManage, reload, onGoToPutaway }: Props) 
         {active && (
           <div className="space-y-4">
             <p className="text-sm leading-relaxed text-slate-500 dark:text-slate-400">{t('receiveHint')}</p>
-            {active.erp_purchase_order_lines.filter(l => l.quantity_received < l.quantity_ordered).map(l => {
+            {(active.erp_purchase_order_lines || []).filter(l => l.quantity_received < l.quantity_ordered).map(l => {
               const remaining = l.quantity_ordered - l.quantity_received;
               const e = entries[l.id];
               const sum = (Number(e?.good) || 0) + (Number(e?.defective) || 0);

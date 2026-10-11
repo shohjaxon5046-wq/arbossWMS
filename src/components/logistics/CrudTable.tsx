@@ -109,8 +109,10 @@ function CrudModal({ id, initial, columns, onClose, onSave }: {
   const { t } = useApp();
   const [form, setForm] = useState<Record<string, string | boolean>>({});
   const [saving, setSaving] = useState(false);
+  const [valError, setValError] = useState('');
 
   useEffect(() => {
+    setValError('');
     const init: Record<string, string | boolean> = {};
     for (const c of columns) {
       const v = initial[c.key];
@@ -121,6 +123,7 @@ function CrudModal({ id, initial, columns, onClose, onSave }: {
 
   const onSubmit = async () => {
     setSaving(true);
+    setValError('');
     const values: Record<string, unknown> = {};
     for (const c of columns) {
       if (!c.shownInForm && id !== null) continue;
@@ -130,7 +133,7 @@ function CrudModal({ id, initial, columns, onClose, onSave }: {
       else values[c.key] = typeof raw === 'string' ? raw.trim() : raw;
       if (c.required && (raw === '' || raw === false)) {
         setSaving(false);
-        window.alert(c.label + ': ' + t('fieldRequired'));
+        setValError(`${c.label}: ${t('fieldRequired')}`);
         return;
       }
     }
@@ -145,6 +148,11 @@ function CrudModal({ id, initial, columns, onClose, onSave }: {
           <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">{id ? t('editRow') : t('addRow')}</h3>
           <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"><X className="h-4 w-4" /></button>
         </div>
+        {valError && (
+          <div className="mb-3 rounded-lg bg-red-50 p-2.5 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">
+            {valError}
+          </div>
+        )}
         <div className="grid gap-3 sm:grid-cols-2">
           {columns.filter(c => c.shownInForm !== false || id === null).map(c => (
             <div key={c.key} className={c.type === 'boolean' ? 'sm:col-span-2' : ''}>

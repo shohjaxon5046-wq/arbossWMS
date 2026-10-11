@@ -45,7 +45,7 @@ export function PutawayTab({ data, canManage, reload }: Props) {
     const group = groups.find(g => g.key === key);
     if (!group) return;
     const init: Record<string, Entry> = {};
-    group.items.forEach(i => { init[i.id] = { serial: '', locationId: '' }; });
+    group.items.forEach(i => { init[i.id] = { serial: i.serial_number || '', locationId: '' }; });
     setEntries(init);
     setBulkShelf('');
     setFormError('');

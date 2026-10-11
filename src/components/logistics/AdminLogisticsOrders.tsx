@@ -180,10 +180,12 @@ function LogisticsOrderDetail({ orderId, onClose, onChanged }: { orderId: string
   const [history, setHistory] = useState<LogisticsOrderHistory[]>([]);
   const [loading, setLoading] = useState(false);
   const [changing, setChanging] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   const load = useCallback(async () => {
     if (!orderId) return;
     setLoading(true);
+    setActionError('');
     const [{ data: o, error: oe }, { data: h, error: he }] = await Promise.all([
       supabase.from('logistics_orders').select('*').eq('id', orderId).maybeSingle(),
       supabase.from('logistics_order_history').select('*').eq('order_id', orderId).order('changed_at', { ascending: false }),
@@ -199,8 +201,9 @@ function LogisticsOrderDetail({ orderId, onClose, onChanged }: { orderId: string
 
   const changeStatus = async (newStatus: string) => {
     setChanging(true);
+    setActionError('');
     const { error } = await supabase.rpc('logistics_set_status', { p_order_id: orderId, p_new_status: newStatus });
-    if (error) window.alert(error.message);
+    if (error) setActionError(error.message);
     setChanging(false);
     await load();
     onChanged();
@@ -216,6 +219,12 @@ function LogisticsOrderDetail({ orderId, onClose, onChanged }: { orderId: string
           </div>
           <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"><X className="h-4 w-4" /></button>
         </div>
+
+        {actionError && (
+          <div className="mt-3 rounded-lg bg-red-50 p-2.5 text-xs text-red-600 dark:bg-red-900/20 dark:text-red-400">
+            {actionError}
+          </div>
+        )}
 
         {loading ? <LoadingSpinner /> : order && (
           <div className="mt-4 space-y-4">
