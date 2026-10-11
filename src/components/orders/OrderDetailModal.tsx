@@ -90,15 +90,23 @@ export function OrderDetailModal({ orderId, onClose, onChanged }: Props) {
 
   const [printing, setPrinting] = useState(false);
 
-  const handlePrint = async (type: '80mm' | 'a4') => {
+  const handlePrintReceipt = async (receiptType: 'simple' | 'contract') => {
     if (!bundle) return;
     setPrinting(true);
     try {
-      if (type === '80mm') {
+      if (receiptType === 'simple') {
         await printCashReceipt80mm(bundle, t);
       } else {
         await printContractA4(bundle, t);
       }
+      setTimeout(() => {
+        try {
+          window.focus();
+          window.print();
+        } catch (e) {
+          console.warn('Window print error:', e);
+        }
+      }, 200);
     } catch (err) {
       setNotice({ kind: 'error', text: t(ordersErrorKey(err)) });
     } finally {
@@ -211,7 +219,7 @@ export function OrderDetailModal({ orderId, onClose, onChanged }: Props) {
           <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
             <button
               type="button"
-              onClick={() => handlePrint('80mm')}
+              onClick={() => handlePrintReceipt('simple')}
               disabled={printing}
               className="btn-secondary"
               title="80mm termoprinter uchun oddiy kassa cheki"
@@ -221,7 +229,7 @@ export function OrderDetailModal({ orderId, onClose, onChanged }: Props) {
             </button>
             <button
               type="button"
-              onClick={() => handlePrint('a4')}
+              onClick={() => handlePrintReceipt('contract')}
               disabled={printing}
               className="btn-secondary"
               title="A4 formatdagi yuridik ijara shartnomasi va dalolatnoma"

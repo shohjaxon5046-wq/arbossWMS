@@ -64,20 +64,43 @@ export async function printLabels(labels: Label[], format: LabelFormat): Promise
 }
 
 export async function printHtml(html: string): Promise<void> {
-  const frame = document.createElement('iframe');
-  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
-  document.body.appendChild(frame);
-  const doc = frame.contentDocument;
-  const win = frame.contentWindow;
-  if (!doc || !win) {
-    frame.remove();
-    throw new Error('Print unavailable');
+  // 1. Inject into main DOM #printable-area for safe @media print rendering
+  let printArea = document.getElementById('printable-area');
+  if (!printArea) {
+    printArea = document.createElement('div');
+    printArea.id = 'printable-area';
+    printArea.className = 'hidden print:block';
+    document.body.appendChild(printArea);
   }
-  doc.open();
-  doc.write(html);
-  doc.close();
-  await new Promise(r => setTimeout(r, 150));
-  win.focus();
-  win.print();
-  setTimeout(() => frame.remove(), 60000);
+  printArea.innerHTML = html;
+
+  // 2. Wait for DOM update
+  await new Promise(r => setTimeout(r, 200));
+
+  // 3. Trigger window.print
+  try {
+    window.focus();
+    window.print();
+  } catch (err) {
+    console.warn('Direct window.print encountered an issue, trying iframe fallback:', err);
+    try {
+      const frame = document.createElement('iframe');
+      frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+      document.body.appendChild(frame);
+      const doc = frame.contentDocument;
+      const win = frame.contentWindow;
+      if (doc && win) {
+        doc.open();
+        doc.write(html);
+        doc.close();
+        await new Promise(r => setTimeout(r, 150));
+        win.focus();
+        win.print();
+        setTimeout(() => frame.remove(), 60000);
+      }
+    } catch (frameErr) {
+      console.error('Print iframe fallback error:', frameErr);
+    }
+  }
 }
+
