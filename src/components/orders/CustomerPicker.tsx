@@ -24,12 +24,23 @@ export function CustomerPicker({ selected, onSelect }: Props) {
     let cancelled = false;
     setSearching(true);
     const timer = setTimeout(async () => {
-      const { data } = await supabase.from('erp_customers').select('*')
-        .or(`full_name.ilike.%${q}%,phone_primary.ilike.%${q}%,phone_secondary.ilike.%${q}%,passport_number.ilike.%${q}%`)
-        .order('full_name').limit(8);
-      if (!cancelled) {
-        setResults((data || []) as Customer[]);
-        setSearching(false);
+      try {
+        const { data, error } = await supabase.from('erp_customers').select('*')
+          .or(`full_name.ilike.%${q}%,phone_primary.ilike.%${q}%,phone_secondary.ilike.%${q}%,passport_number.ilike.%${q}%`)
+          .order('full_name').limit(8);
+        if (!cancelled) {
+          if (error) {
+            console.warn('Customer search error:', error);
+          }
+          setResults((data || []) as Customer[]);
+          setSearching(false);
+        }
+      } catch (err) {
+        console.warn('Customer search exception:', err);
+        if (!cancelled) {
+          setResults([]);
+          setSearching(false);
+        }
       }
     }, 250);
     return () => { cancelled = true; clearTimeout(timer); };

@@ -156,6 +156,8 @@ class MockQueryBuilder {
   private orderField?: string;
   private orderAsc: boolean = true;
   private limitCount?: number;
+  private rangeFrom?: number;
+  private rangeTo?: number;
   private singleResult: boolean = false;
   private fieldsToSelect: string = '*';
 
@@ -189,6 +191,141 @@ class MockQueryBuilder {
       const val = String(row[column] ?? '').toLowerCase();
       return val.includes(cleanPattern);
     });
+    return this;
+  }
+
+  like(column: string, pattern: string) {
+    const cleanPattern = pattern.replace(/%/g, '');
+    this.filters.push(row => {
+      const val = String(row[column] ?? '');
+      return val.includes(cleanPattern);
+    });
+    return this;
+  }
+
+  is(column: string, value: any) {
+    this.filters.push(row => {
+      const val = row[column];
+      if (value === null) return val === null || val === undefined;
+      return val === value;
+    });
+    return this;
+  }
+
+  not(column: string, operator: string, value: any) {
+    this.filters.push(row => {
+      const rowVal = row[column];
+      if (operator === 'is') {
+        if (value === null) return rowVal !== null && rowVal !== undefined;
+        return rowVal !== value;
+      }
+      if (operator === 'eq') {
+        return rowVal !== value;
+      }
+      if (operator === 'in') {
+        return !Array.isArray(value) || !value.includes(rowVal);
+      }
+      if (operator === 'ilike') {
+        const clean = String(value).replace(/%/g, '').toLowerCase();
+        return !String(rowVal ?? '').toLowerCase().includes(clean);
+      }
+      return rowVal !== value;
+    });
+    return this;
+  }
+
+  or(clause: string) {
+    if (!clause) return this;
+    const conditions = clause.split(',').map(c => c.trim()).filter(Boolean);
+    this.filters.push(row => {
+      return conditions.some(cond => {
+        const dot1 = cond.indexOf('.');
+        if (dot1 === -1) return false;
+        const column = cond.slice(0, dot1);
+        const rest = cond.slice(dot1 + 1);
+        const dot2 = rest.indexOf('.');
+        const op = dot2 === -1 ? rest : rest.slice(0, dot2);
+        const rawVal = dot2 === -1 ? '' : rest.slice(dot2 + 1);
+
+        const rowVal = row[column];
+
+        switch (op) {
+          case 'ilike': {
+            const cleanPattern = rawVal.replace(/%/g, '').toLowerCase();
+            return String(rowVal ?? '').toLowerCase().includes(cleanPattern);
+          }
+          case 'like': {
+            const cleanPattern = rawVal.replace(/%/g, '');
+            return String(rowVal ?? '').includes(cleanPattern);
+          }
+          case 'eq':
+            return String(rowVal) === rawVal || rowVal === rawVal;
+          case 'neq':
+            return String(rowVal) !== rawVal;
+          case 'is':
+            if (rawVal === 'null') return rowVal === null || rowVal === undefined;
+            return rowVal === rawVal;
+          case 'in': {
+            const clean = rawVal.replace(/^\(|\)$/g, '');
+            const items = clean.split(',').map(s => s.trim());
+            return items.includes(String(rowVal));
+          }
+          case 'gt':
+            return Number(rowVal) > Number(rawVal);
+          case 'gte':
+            return Number(rowVal) >= Number(rawVal);
+          case 'lt':
+            return Number(rowVal) < Number(rawVal);
+          case 'lte':
+            return Number(rowVal) <= Number(rawVal);
+          default: {
+            const clean = rawVal.replace(/%/g, '').toLowerCase();
+            return String(rowVal ?? '').toLowerCase().includes(clean);
+          }
+        }
+      });
+    });
+    return this;
+  }
+
+  gt(column: string, value: any) {
+    this.filters.push(row => Number(row[column]) > Number(value));
+    return this;
+  }
+
+  gte(column: string, value: any) {
+    this.filters.push(row => Number(row[column]) >= Number(value));
+    return this;
+  }
+
+  lt(column: string, value: any) {
+    this.filters.push(row => Number(row[column]) < Number(value));
+    return this;
+  }
+
+  lte(column: string, value: any) {
+    this.filters.push(row => Number(row[column]) <= Number(value));
+    return this;
+  }
+
+  contains(column: string, value: any) {
+    this.filters.push(row => {
+      const rowVal = row[column];
+      if (Array.isArray(rowVal) && Array.isArray(value)) {
+        return value.every(v => rowVal.includes(v));
+      }
+      return String(rowVal ?? '').includes(String(value));
+    });
+    return this;
+  }
+
+  filter(column: string, operator: string, value: any) {
+    return this.not(column, operator === 'neq' ? 'eq' : operator, value);
+  }
+
+  range(from: number, to: number) {
+    this.rangeFrom = from;
+    this.rangeTo = to;
     return this;
   }
 
@@ -233,8 +370,28 @@ class MockQueryBuilder {
       });
     }
 
-    if (this.limitCount !== undefined) {
+    if (this.rangeFrom !== undefined && this.rangeTo !== undefined) {
+      result = result.slice(this.rangeFrom, this.rangeTo + 1);
+    } else if (this.limitCount !== undefined) {
       result = result.slice(0, this.limitCount);
+    }
+
+    if (this.table === 'erp_product_items') {
+      const models = localStore.getTable('erp_product_models');
+      const modelMap = new Map(models.map(m => [m.id, m]));
+      result = result.map(item => ({
+        ...item,
+        erp_product_models: item.erp_product_models || (item.model_id ? modelMap.get(item.model_id) : null),
+      }));
+    }
+
+    if (this.table === 'erp_service_orders') {
+      const orders = localStore.getTable('erp_orders');
+      const orderMap = new Map(orders.map(o => [o.id, o]));
+      result = result.map(so => ({
+        ...so,
+        erp_orders: so.erp_orders || (so.order_id ? orderMap.get(so.order_id) : null),
+      }));
     }
 
     if (this.singleResult) {
@@ -261,37 +418,75 @@ class MockQueryBuilder {
       error: null,
       select: () => ({
         single: async () => ({ data: stamped[0], error: null }),
+        maybeSingle: async () => ({ data: stamped[0], error: null }),
         then: (fn: any) => Promise.resolve({ data: stamped, error: null }).then(fn),
       }),
     };
   }
 
-  async update(values: any) {
+  update(values: any) {
+    const table = this.table;
+    const mutate = (predicate: (row: any) => boolean) => {
+      const current = localStore.getTable(table);
+      const modified: any[] = [];
+      const updated = current.map(row => {
+        if (predicate(row)) {
+          const mod = { ...row, ...values, updated_at: new Date().toISOString() };
+          modified.push(mod);
+          return mod;
+        }
+        return row;
+      });
+      localStore.saveTable(table, updated);
+      return {
+        data: modified,
+        error: null,
+        select: () => ({
+          single: async () => ({ data: modified[0] ?? null, error: null }),
+          maybeSingle: async () => ({ data: modified[0] ?? null, error: null }),
+          then: (fn: any) => Promise.resolve({ data: modified, error: null }).then(fn),
+        }),
+      };
+    };
+
     return {
       eq: (column: string, targetVal: any) => {
-        const current = localStore.getTable(this.table);
-        let updatedCount = 0;
-        const updated = current.map(row => {
-          if (row[column] === targetVal) {
-            updatedCount++;
-            return { ...row, ...values, updated_at: new Date().toISOString() };
-          }
-          return row;
-        });
-        localStore.saveTable(this.table, updated);
-        return Promise.resolve({ data: updatedCount, error: null });
+        const res = mutate(row => row[column] === targetVal);
+        return Promise.resolve(res);
       },
+      in: (column: string, targets: any[]) => {
+        const res = mutate(row => targets.includes(row[column]));
+        return Promise.resolve(res);
+      },
+      then: (fn: any) => Promise.resolve(mutate(() => true)).then(fn),
     };
   }
 
-  async delete() {
+  delete() {
+    const table = this.table;
+    const mutate = (predicate: (row: any) => boolean) => {
+      const current = localStore.getTable(table);
+      const updated = current.filter(row => !predicate(row));
+      localStore.saveTable(table, updated);
+      return {
+        data: true,
+        error: null,
+        select: () => ({
+          then: (fn: any) => Promise.resolve({ data: true, error: null }).then(fn),
+        }),
+      };
+    };
+
     return {
       eq: (column: string, targetVal: any) => {
-        const current = localStore.getTable(this.table);
-        const updated = current.filter(row => row[column] !== targetVal);
-        localStore.saveTable(this.table, updated);
-        return Promise.resolve({ data: true, error: null });
+        const res = mutate(row => row[column] === targetVal);
+        return Promise.resolve(res);
       },
+      in: (column: string, targets: any[]) => {
+        const res = mutate(row => targets.includes(row[column]));
+        return Promise.resolve(res);
+      },
+      then: (fn: any) => Promise.resolve(mutate(() => true)).then(fn),
     };
   }
 
