@@ -52,6 +52,8 @@ export function OrderPrintModal({ open, orderId, onClose }: Props) {
             ]);
             setSimpleHtml(sHtml);
             setContractHtml(cHtml);
+            setPreviewHtml(sHtml);
+            setPreviewMode('simple');
 
             // Populate #printable-area in advance so it is immediately ready
             let el = document.getElementById('printable-area');
@@ -74,13 +76,15 @@ export function OrderPrintModal({ open, orderId, onClose }: Props) {
     } else {
       setBundle(null);
       setPreviewHtml('');
-      setPreviewMode(null);
+      setPreviewMode('simple');
       setSimpleHtml('');
       setContractHtml('');
     }
   }, [open, orderId]);
 
   if (!open || !orderId) return null;
+
+  const isInsideIframe = typeof window !== 'undefined' && window.self !== window.top;
 
   // Safe and responsive print handler with DOM update and 200ms timeout
   const handlePrintReceipt = (receiptType: ReceiptType) => {
@@ -319,6 +323,19 @@ export function OrderPrintModal({ open, orderId, onClose }: Props) {
                 </button>
               </div>
             </div>
+
+            {isInsideIframe && (
+              <div className="rounded-lg bg-amber-50/80 border border-amber-200/80 px-3 py-2 text-[11px] text-amber-800 flex items-center justify-between gap-2">
+                <span>💡 Brauzerlar preview (iframe) oynasida printer darchasini bloklashi mumkin. Agar ochilmasa, <strong>«Yangi oynada»</strong> tugmasini bosing yoki to'g'ridan-to'g'ri sayt havolasida oching.</span>
+                <button
+                  type="button"
+                  onClick={handleOpenNewTab}
+                  className="flex-shrink-0 text-amber-900 font-bold underline hover:text-amber-700"
+                >
+                  Ochish →
+                </button>
+              </div>
+            )}
 
             {/* Embedded Sandbox Safe Preview iframe */}
             <div className="overflow-hidden rounded-lg border border-slate-300 bg-white shadow-inner">
