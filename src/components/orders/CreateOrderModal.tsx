@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Printer, Truck, Store, Wrench, AlertCircle } from 'lucide-react';
+import { Loader2, Printer, Truck, Store, Wrench, AlertCircle, FileText, Download } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,6 +12,7 @@ import { EquipmentPicker } from '@/components/orders/EquipmentPicker';
 import { OrderPrintModal } from '@/components/orders/OrderPrintModal';
 import { loadOrderBundle, ordersErrorKey, rentLineTotal, rentDiscountPct } from '@/lib/orders';
 import { printCashReceipt80mm, printContractA4 } from '@/lib/receipt';
+import { downloadContractPdf, printContractDocument, type DraftContractParams } from '@/lib/pdfContract';
 import { callTelegramBot } from '@/lib/telegram';
 import type { CashRegister, Customer, ProductItem, ProductModel } from '@/types';
 
@@ -53,6 +54,54 @@ export function CreateOrderModal({ open, onClose, onCreated }: Props) {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
   const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
+
+  const [downloadingContract, setDownloadingContract] = useState(false);
+  const [printingContract, setPrintingContract] = useState(false);
+
+  const getDraftParams = (): DraftContractParams | null => {
+    if (!customer) return null;
+    return {
+      customer,
+      itemIds,
+      models,
+      available,
+      days: nDays,
+      delivery,
+      address,
+      notes,
+      payAmount: payNum,
+      payType,
+      staffName: staff?.full_name || 'Kassir / Menejer'
+    };
+  };
+
+  const handleDownloadDraftContract = async () => {
+    const params = getDraftParams();
+    if (!params) return;
+    setDownloadingContract(true);
+    try {
+      await downloadContractPdf(params);
+    } catch (err: any) {
+      console.error('Error generating draft PDF:', err);
+      setNotice({ kind: 'error', text: 'Shartnoma PDF faylini yuklab olishda xatolik yuz berdi' });
+    } finally {
+      setDownloadingContract(false);
+    }
+  };
+
+  const handlePrintDraftContract = async () => {
+    const params = getDraftParams();
+    if (!params) return;
+    setPrintingContract(true);
+    try {
+      await printContractDocument(params);
+    } catch (err: any) {
+      console.error('Error printing draft contract:', err);
+      setNotice({ kind: 'error', text: 'Shartnomani chop etishda xatolik yuz berdi' });
+    } finally {
+      setPrintingContract(false);
+    }
+  };
 
   const loadRefs = useCallback(async () => {
     setLoading(true);
@@ -225,6 +274,49 @@ export function CreateOrderModal({ open, onClose, onCreated }: Props) {
                   if (c?.address && !address) setAddress(c.address);
                 }}
               />
+
+              {/* Ready Contract Actions once customer is selected */}
+              {customer && (
+                <div className="mt-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 rounded-xl border border-indigo-200 bg-gradient-to-r from-indigo-50/80 to-blue-50/80 p-3 shadow-sm animate-fade-in">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-sm">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-900">
+                        Tayyor ijara shartnomasi (A4 yuridik dalolatnoma)
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        Mijoz rekvizitlari va {itemIds.length ? `${itemIds.length} ta tanlangan uskuna` : 'uskunalar'} bilan to‘ldirilgan
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button
+                      type="button"
+                      onClick={handlePrintDraftContract}
+                      disabled={printingContract}
+                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-50"
+                      title="Shartnomani to‘g‘ridan-to‘g‘ri chop etish"
+                    >
+                      {printingContract ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Printer className="h-3.5 w-3.5 text-blue-600" />}
+                      <span>Chop etish</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDownloadDraftContract}
+                      disabled={downloadingContract}
+                      className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+                      title="Shartnomani PDF formatida yuklab olish"
+                    >
+                      {downloadingContract ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                      <span>PDF yuklab olish</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </Section>
 
             {/* Step 2: Rented Tools and Days */}

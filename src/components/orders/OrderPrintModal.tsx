@@ -10,6 +10,7 @@ import {
   generateCashReceipt80mmHtml, generateContractA4Html, 
   getCashReceiptPlainText 
 } from '@/lib/receipt';
+import { downloadContractPdf } from '@/lib/pdfContract';
 import { openHtmlInNewTab, downloadHtmlFile } from '@/lib/labels';
 import { formatCurrency, formatDate } from '@/lib/format';
 import type { OrderBundle } from '@/lib/orders';
@@ -154,6 +155,22 @@ export function OrderPrintModal({ open, orderId, onClose }: Props) {
       openHtmlInNewTab(html);
     } catch (err: any) {
       setError('Alohida oynada ochishda xatolik yuz berdi');
+    }
+  };
+
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  // Download PDF file
+  const handleDownloadPdf = async () => {
+    if (!bundle) return;
+    setDownloadingPdf(true);
+    try {
+      await downloadContractPdf(bundle);
+    } catch (err: any) {
+      console.error('PDF generation error:', err);
+      setError('PDF faylni yuklab olishda xatolik yuz berdi');
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -314,12 +331,22 @@ export function OrderPrintModal({ open, orderId, onClose }: Props) {
                 </button>
                 <button
                   type="button"
+                  onClick={handleDownloadPdf}
+                  disabled={downloadingPdf}
+                  className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+                  title="A4 formatda PDF shartnoma yuklab olish"
+                >
+                  {downloadingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                  <span>PDF yuklab olish</span>
+                </button>
+                <button
+                  type="button"
                   onClick={handleDownload}
                   className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
                   title="HTML formatida yuklab olish"
                 >
-                  <Download className="h-3.5 w-3.5 text-slate-500" />
-                  <span>Yuklab olish</span>
+                  <FileText className="h-3.5 w-3.5 text-slate-500" />
+                  <span>HTML</span>
                 </button>
               </div>
             </div>

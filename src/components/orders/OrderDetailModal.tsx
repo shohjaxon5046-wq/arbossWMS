@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, CreditCard, FileText, Loader2, PackageCheck, Printer, XCircle } from 'lucide-react';
+import { CheckCircle2, CreditCard, FileText, Loader2, PackageCheck, Printer, XCircle, Download } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,6 +9,7 @@ import { LoadingSpinner } from '@/components/ui/States';
 import { FieldLabel, InlineNotice, type Notice } from '@/components/inbound/InlineNotice';
 import { loadOrderBundle, ordersErrorKey, type OrderBundle } from '@/lib/orders';
 import { printCashReceipt80mm, printContractA4 } from '@/lib/receipt';
+import { downloadContractPdf } from '@/lib/pdfContract';
 import type { TranslationKey } from '@/lib/i18n';
 import type { CashRegister, OrderStatus } from '@/types';
 
@@ -89,6 +90,7 @@ export function OrderDetailModal({ orderId, onClose, onChanged }: Props) {
   };
 
   const [printing, setPrinting] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const handlePrintReceipt = async (receiptType: 'simple' | 'contract') => {
     if (!bundle) return;
@@ -103,6 +105,18 @@ export function OrderDetailModal({ orderId, onClose, onChanged }: Props) {
       setNotice({ kind: 'error', text: t(ordersErrorKey(err)) });
     } finally {
       setPrinting(false);
+    }
+  };
+
+  const handleDownloadPdf = async () => {
+    if (!bundle) return;
+    setDownloadingPdf(true);
+    try {
+      await downloadContractPdf(bundle);
+    } catch (err) {
+      setNotice({ kind: 'error', text: 'PDF yuklab olishda xatolik yuz berdi' });
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -228,6 +242,16 @@ export function OrderDetailModal({ orderId, onClose, onChanged }: Props) {
             >
               <FileText className="h-4 w-4 text-indigo-600" />
               <span>📄 Shartnoma (A4)</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={downloadingPdf}
+              className="btn-secondary text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400"
+              title="Tayyor ijara shartnomasini PDF qilib yuklab olish"
+            >
+              {downloadingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4 text-emerald-600" />}
+              <span>📥 Shartnoma PDF</span>
             </button>
             {Number(order.debt_amount) > 0 && order.status !== 'bekor' && !payOpen && (
               <button onClick={() => setPayOpen(true)} className="btn-primary"><CreditCard className="h-4 w-4" /> {t('receivePayment')}</button>
