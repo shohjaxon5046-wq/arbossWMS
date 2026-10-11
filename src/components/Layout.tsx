@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import {
   LayoutDashboard, PackageCheck, QrCode, Package, Users, ShoppingCart,
   UserCircle, Wallet, Settings as SettingsIcon, Building2,
-  Languages, LogOut, Menu, X, ChevronDown, Check, Shield, UserCheck, ShoppingBag, Receipt, Warehouse
+  Languages, LogOut, Menu, X
 } from 'lucide-react';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -38,14 +38,6 @@ const navItems: NavItem[] = [
   { id: 'settings', labelKey: 'settings', icon: SettingsIcon, roles: ['admin', 'manager'] },
 ];
 
-const ROLES_LIST: { role: UserRole; labelUz: string; labelRu: string; icon: any; color: string }[] = [
-  { role: 'admin', labelUz: 'Admin (Shohjaxon)', labelRu: 'Админ', icon: Shield, color: 'text-red-600 bg-red-50 border-red-200' },
-  { role: 'manager', labelUz: 'Menejer (Bobur)', labelRu: 'Менеджер', icon: UserCheck, color: 'text-indigo-600 bg-indigo-50 border-indigo-200' },
-  { role: 'seller', labelUz: 'Sotuvchi (Jasur)', labelRu: 'Продавец', icon: ShoppingBag, color: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
-  { role: 'cashier', labelUz: 'Kassir (Nilufar)', labelRu: 'Кассир', icon: Receipt, color: 'text-amber-600 bg-amber-50 border-amber-200' },
-  { role: 'warehouse', labelUz: 'Omborchi (Sherzod)', labelRu: 'Склад', icon: Warehouse, color: 'text-purple-600 bg-purple-50 border-purple-200' },
-];
-
 interface LayoutProps {
   currentPage: PageId;
   onPageChange: (page: PageId) => void;
@@ -55,9 +47,8 @@ interface LayoutProps {
 
 export function Layout({ currentPage, onPageChange, onSearchSelect, children }: LayoutProps) {
   const { t, lang, setLang } = useApp();
-  const { staff, switchRole, signOut } = useAuth();
+  const { staff, signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
 
   const userRole = staff?.role || 'admin';
   const visibleItems = navItems.filter(item => item.roles.includes(userRole));
@@ -66,8 +57,6 @@ export function Layout({ currentPage, onPageChange, onSearchSelect, children }: 
     onPageChange(page);
     setSidebarOpen(false);
   };
-
-  const currentRoleInfo = ROLES_LIST.find(r => r.role === userRole) || ROLES_LIST[0];
 
   return (
     <div className="flex min-h-screen bg-slate-50 text-slate-900">
@@ -162,59 +151,6 @@ export function Layout({ currentPage, onPageChange, onSearchSelect, children }: 
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Role Switcher Pill */}
-            <div className="relative">
-              <button
-                onClick={() => setRoleMenuOpen(!roleMenuOpen)}
-                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
-                title={lang === 'uz' ? 'Rolni tezkor almashtirish' : 'Быстро переключить роль'}
-              >
-                <currentRoleInfo.icon className="h-3.5 w-3.5 text-blue-600" />
-                <span className="hidden md:inline font-semibold">
-                  {lang === 'uz' ? currentRoleInfo.labelUz : currentRoleInfo.labelRu}
-                </span>
-                <ChevronDown className="h-3 w-3 text-slate-400" />
-              </button>
-
-              {roleMenuOpen && (
-                <>
-                  <div
-                    className="fixed inset-0 z-40"
-                    onClick={() => setRoleMenuOpen(false)}
-                  />
-                  <div className="absolute right-0 top-full mt-1.5 z-50 w-56 rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl">
-                    <div className="px-2.5 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                      {lang === 'uz' ? 'Rolni tanlang:' : 'Выберите роль:'}
-                    </div>
-                    {ROLES_LIST.map(r => {
-                      const Icon = r.icon;
-                      const isSelected = userRole === r.role;
-                      return (
-                        <button
-                          key={r.role}
-                          onClick={() => {
-                            switchRole(r.role);
-                            setRoleMenuOpen(false);
-                          }}
-                          className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-xs font-medium transition ${
-                            isSelected
-                              ? 'bg-blue-50 text-blue-700 font-bold'
-                              : 'text-slate-700 hover:bg-slate-100'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <Icon className="h-3.5 w-3.5" />
-                            <span>{lang === 'uz' ? r.labelUz : r.labelRu}</span>
-                          </div>
-                          {isSelected && <Check className="h-3.5 w-3.5 text-blue-600" />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </>
-              )}
-            </div>
-
             {/* Language toggle */}
             <button
               onClick={() => setLang(lang === 'uz' ? 'ru' : 'uz')}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Loader2, Printer, Truck, Store, Wrench } from 'lucide-react';
+import { Loader2, Printer, Truck, Store, Wrench, AlertCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -371,11 +371,17 @@ export function CreateOrderModal({ open, onClose, onCreated }: Props) {
               />
 
               <div className="space-y-2 pt-2">
+                {!customer && (
+                  <div className="flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 border border-amber-200">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0 text-amber-600" />
+                    <span>Mijozni tanlamasdan buyurtma rasmiylashtirib bo‘lmaydi!</span>
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => submit()}
                   disabled={saving || !customer || !hasContent}
-                  className="btn-primary w-full justify-center text-sm font-bold shadow-md shadow-blue-600/25"
+                  className="btn-primary w-full justify-center text-sm font-bold shadow-md shadow-blue-600/25 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Printer className="h-4 w-4" />}
                   Buyurtmani tasdiqlash va chek chiqarish

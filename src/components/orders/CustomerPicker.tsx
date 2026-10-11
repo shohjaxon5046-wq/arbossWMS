@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CloudDownload, Loader2, Phone, Search, UserPlus, UserRound } from 'lucide-react';
+import { Loader2, Phone, Search, UserPlus, UserRound } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useApp } from '@/contexts/AppContext';
 import { formatCurrency } from '@/lib/format';
@@ -77,9 +77,6 @@ export function CustomerPicker({ selected, onSelect }: Props) {
         </div>
         <button onClick={() => setFormOpen(true)} className="btn-primary whitespace-nowrap">
           <UserPlus className="h-4 w-4" /> <span className="hidden sm:inline">{t('ordNewCustomer')}</span>
-        </button>
-        <button disabled title={t('ordIboxSoon')} className="btn-secondary cursor-not-allowed whitespace-nowrap opacity-50">
-          <CloudDownload className="h-4 w-4" /> <span className="hidden md:inline">{t('ordIboxSearch')}</span>
         </button>
       </div>
 

@@ -33,11 +33,35 @@ export function EquipmentPicker({ models, available, selectedIds, days, onAdd, o
 
   const modelById = useMemo(() => new Map(models.map(m => [m.id, m])), [models]);
 
-  const visibleModels = models.filter(m => {
-    if (!m.is_active) return false;
-    const q = search.trim().toLowerCase();
-    return !q || [m.name, m.brand, m.category, m.model_code].some(v => (v || '').toLowerCase().includes(q));
-  });
+  const searchTrimmed = search.trim().toLowerCase();
+  const searchTokens = useMemo(() => searchTrimmed.split(/\s+/).filter(Boolean), [searchTrimmed]);
+
+  const visibleModels = useMemo(() => {
+    if (searchTrimmed.length === 0) {
+      return [];
+    }
+
+    return models.filter(m => {
+      if (!m.is_active) return false;
+      const searchableFields = [
+        m.name || '',
+        m.brand || '',
+        m.category || '',
+        m.model_code || '',
+        m.description || ''
+      ].map(s => s.toLowerCase());
+
+      // Check if any free serial number matches the search
+      const freeUnits = freeByModel.get(m.id) || [];
+      const unitSerials = freeUnits.map(u => (u.serial_number || '').toLowerCase());
+
+      // Every word token should match at least one attribute of the model or serial
+      return searchTokens.every(token =>
+        searchableFields.some(field => field.includes(token)) ||
+        unitSerials.some(serial => serial.includes(token))
+      );
+    });
+  }, [models, searchTrimmed, searchTokens, freeByModel]);
 
   const selectedItems = selectedIds
     .map(id => available.find(i => i.id === id))
@@ -72,7 +96,26 @@ export function EquipmentPicker({ models, available, selectedIds, days, onAdd, o
       </div>
 
       <div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
-        {visibleModels.length === 0 && <p className="py-6 text-center text-sm text-slate-400">{t('noData')}</p>}
+        {searchTrimmed.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center text-slate-400">
+            <Search className="mb-2 h-7 w-7 text-slate-300" />
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+              Uskunani qidirish uchun nomini yoki kodini yozing
+            </p>
+            <p className="mt-0.5 text-xs text-slate-400">
+              Masalan: «Perforator», «Bolgarka», «Bosch», yoki seriya raqami
+            </p>
+          </div>
+        ) : visibleModels.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-8 text-center text-slate-400">
+            <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+              «{search.trim()}» bo‘yicha uskuna topilmadi
+            </p>
+            <p className="mt-0.5 text-xs text-slate-400">
+              Qidiruv so‘zini to‘g‘rilab ko‘ring yoki boshqa nom kiriting
+            </p>
+          </div>
+        ) : null}
         {visibleModels.map(m => {
           const free = freeByModel.get(m.id) ?? [];
           const isOpen = expanded === m.id;

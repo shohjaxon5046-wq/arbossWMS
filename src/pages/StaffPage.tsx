@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Plus, Pencil, Trash2, Users, Loader2, Search, KeyRound, FileSpreadsheet, Download, Upload } from 'lucide-react';
+import { Plus, Pencil, Trash2, Users, Loader2, Search, KeyRound, FileSpreadsheet, Download, Upload, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -53,6 +53,8 @@ export function StaffPage() {
   const emptyForm = { full_name: '', phone: '', email: '', password: '', role: 'seller' as UserRole, is_active: true };
   const [form, setForm] = useState(emptyForm);
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
+  const [showFormPassword, setShowFormPassword] = useState(false);
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
@@ -383,7 +385,22 @@ export function StaffPage() {
           {!editing && (
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">{t('newPassword')}</label>
-              <input type="password" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} className="input-field" placeholder={t('passwordHint')} />
+              <div className="relative">
+                <input
+                  type={showFormPassword ? 'text' : 'password'}
+                  value={form.password}
+                  onChange={e => setForm({ ...form, password: e.target.value })}
+                  className="input-field pr-10"
+                  placeholder={t('passwordHint')}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowFormPassword(!showFormPassword)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-slate-600 focus:outline-none transition-colors"
+                >
+                  {showFormPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               <p className="mt-1 text-xs text-slate-400">{t('loginInfo')}</p>
             </div>
           )}
@@ -425,7 +442,22 @@ export function StaffPage() {
             </div>
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">{t('newPassword')}</label>
-              <input type="password" value={loginForm.password} onChange={e => setLoginForm({ ...loginForm, password: e.target.value })} className="input-field" placeholder={t('passwordHint')} />
+              <div className="relative">
+                <input
+                  type={showLoginPassword ? 'text' : 'password'}
+                  value={loginForm.password}
+                  onChange={e => setLoginForm({ ...loginForm, password: e.target.value })}
+                  className="input-field pr-10"
+                  placeholder={t('passwordHint')}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowLoginPassword(!showLoginPassword)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-slate-600 focus:outline-none transition-colors"
+                >
+                  {showLoginPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
             {formError && (
               <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">{formError}</div>
