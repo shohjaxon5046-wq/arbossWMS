@@ -256,16 +256,51 @@ export interface Expense {
   created_at: string;
 }
 
+export interface PartnerSpecs {
+  // Avtokran
+  lifting_capacity?: string; // masalan 16t, 25t, 50t
+  boom_length?: string; // masalan 21m, 28m, 35m
+  min_hours?: string; // kamida 2 soat
+  
+  // Manipulyator
+  body_capacity?: string; // 5t, 10t
+  crane_capacity?: string; // 3t, 5t
+  body_length?: string; // 6 metr
+  
+  // Avtolift (Fasad lifti)
+  lift_height?: string; // 12-qavat / 35 metr
+  basket_capacity?: string; // 400 kg
+  
+  // Musor mashina
+  body_volume?: string; // 8 m³, 16 m³
+  tonnage?: string; // 3t, 5t, 10t
+  trip_price?: number | string; // 1 reys narxi (so'm)
+  
+  // Gruzchik
+  worker_count?: string | number; // kishi
+  rate_type?: string; // 'soatlik' | 'ogirlik'
+  weight_rate?: string; // kg tarifi
+  
+  // Narxlar
+  hourly_rate?: number | string; // so'm/soat
+  custom_specs?: string; // Boshqa maxsus texnika tavsifi
+  [key: string]: any;
+}
+
 export interface ServicePartner {
   id: string;
   company_name: string;
   service_category: string;
+  custom_category_name?: string;
+  license_plate?: string;
+  driver_name?: string;
   phone_primary: string;
   phone_secondary: string;
   is_available: boolean;
   status: string;
   rating: number;
   notes: string;
+  specs?: PartnerSpecs;
   created_at: string;
   updated_at: string;
 }

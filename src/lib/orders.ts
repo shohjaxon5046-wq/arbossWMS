@@ -151,8 +151,18 @@ export async function loadOrderBundle(orderId: string): Promise<OrderBundle> {
   };
 }
 
-export const SERVICE_CATEGORIES: { value: string; labelKey: TranslationKey }[] = [
-  { value: 'avtokran', labelKey: 'crane' },
-  { value: 'musor', labelKey: 'truck' },
-  { value: 'gruzchik', labelKey: 'movers' },
+export interface ServiceCategoryOption {
+  value: string;
+  labelKey: TranslationKey;
+  icon: string;
+  titleUz: string;
+}
+
+export const SERVICE_CATEGORIES: ServiceCategoryOption[] = [
+  { value: 'avtokran', labelKey: 'crane', icon: '🏗️', titleUz: 'Avtokran' },
+  { value: 'manipulyator', labelKey: 'manipulator', icon: '🚛', titleUz: 'Manipulyator' },
+  { value: 'avtolift', labelKey: 'autolift', icon: '🛗', titleUz: 'Avtolift (Fasad lifti)' },
+  { value: 'musor', labelKey: 'truck', icon: '🚚', titleUz: 'Musor mashina' },
+  { value: 'gruzchik', labelKey: 'movers', icon: '👷‍♂️', titleUz: 'Gruzchik brigadasi' },
+  { value: 'boshqa', labelKey: 'otherSpecial', icon: '➕', titleUz: 'Boshqa maxsus texnika' },
 ];
