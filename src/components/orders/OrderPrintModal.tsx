@@ -23,7 +23,7 @@ interface Props {
 export type ReceiptType = 'simple' | 'contract';
 
 export function OrderPrintModal({ open, orderId, onClose }: Props) {
-  const [activePrintType, setActivePrintType] = useState<ReceiptType | null>(null);
+  const [activePrintType, setActivePrintType] = useState<ReceiptType>('simple');
   const [bundle, setBundle] = useState<OrderBundle | null>(null);
   const [loading, setLoading] = useState(false);
   const [printing, setPrinting] = useState(false);
@@ -31,19 +31,40 @@ export function OrderPrintModal({ open, orderId, onClose }: Props) {
   const [copied, setCopied] = useState(false);
   const [previewHtml, setPreviewHtml] = useState<string>('');
   const [previewMode, setPreviewMode] = useState<ReceiptType | null>(null);
+  const [simpleHtml, setSimpleHtml] = useState<string>('');
+  const [contractHtml, setContractHtml] = useState<string>('');
 
-  // Load bundle data as soon as modal opens
+  // Load bundle data and pre-generate receipts as soon as modal opens
   useEffect(() => {
     if (open && orderId) {
       setLoading(true);
       setError('');
-      setActivePrintType(null);
       setPreviewHtml('');
       setPreviewMode(null);
-      
+
       loadOrderBundle(orderId)
-        .then(b => {
+        .then(async (b) => {
           setBundle(b);
+          try {
+            const [sHtml, cHtml] = await Promise.all([
+              generateCashReceipt80mmHtml(b),
+              generateContractA4Html(b),
+            ]);
+            setSimpleHtml(sHtml);
+            setContractHtml(cHtml);
+
+            // Populate #printable-area in advance so it is immediately ready
+            let el = document.getElementById('printable-area');
+            if (!el) {
+              el = document.createElement('div');
+              el.id = 'printable-area';
+              el.className = 'hidden print:block';
+              document.body.appendChild(el);
+            }
+            el.innerHTML = sHtml;
+          } catch (genErr) {
+            console.error('Failed to pre-generate receipt HTML:', genErr);
+          }
         })
         .catch(err => {
           console.error('Failed to load order bundle for printing:', err);
@@ -52,58 +73,70 @@ export function OrderPrintModal({ open, orderId, onClose }: Props) {
         .finally(() => setLoading(false));
     } else {
       setBundle(null);
-      setActivePrintType(null);
       setPreviewHtml('');
       setPreviewMode(null);
+      setSimpleHtml('');
+      setContractHtml('');
     }
   }, [open, orderId]);
 
   if (!open || !orderId) return null;
 
-  // Safe and resilient print handler
-  const handlePrintReceipt = async (receiptType: ReceiptType) => {
+  // Safe and responsive print handler with DOM update and 200ms timeout
+  const handlePrintReceipt = (receiptType: ReceiptType) => {
     setError('');
-    setActivePrintType(receiptType);
+    setActivePrintType(receiptType); // 'simple' yoki 'contract'
     setPrinting(true);
 
-    try {
-      let b = bundle;
-      if (!b) {
-        b = await loadOrderBundle(orderId);
-        setBundle(b);
+    // Get the HTML content for this receipt type
+    let html = receiptType === 'simple' ? simpleHtml : contractHtml;
+
+    // Fallback: If not pre-generated yet, generate synchronously or immediately
+    if (!html && bundle) {
+      if (receiptType === 'simple') {
+        generateCashReceipt80mmHtml(bundle).then(generated => {
+          setSimpleHtml(generated);
+          setPreviewHtml(generated);
+          setPreviewMode(receiptType);
+          syncPrintableDom(generated);
+        });
+      } else {
+        generateContractA4Html(bundle).then(generated => {
+          setContractHtml(generated);
+          setPreviewHtml(generated);
+          setPreviewMode(receiptType);
+          syncPrintableDom(generated);
+        });
       }
-
-      // Generate HTML for both preview and printing
-      const html = receiptType === 'simple'
-        ? await generateCashReceipt80mmHtml(b)
-        : await generateContractA4Html(b);
-
+    } else if (html) {
       setPreviewHtml(html);
       setPreviewMode(receiptType);
-
-      // Trigger standard print mechanism
-      if (receiptType === 'simple') {
-        await printCashReceipt80mm(b);
-      } else {
-        await printContractA4(b);
-      }
-
-      // Safe secondary trigger for browsers needing DOM sync
-      setTimeout(() => {
-        try {
-          window.focus();
-          window.print();
-        } catch (e) {
-          console.warn('Direct window.print notice:', e);
-        } finally {
-          setPrinting(false);
-        }
-      }, 200);
-    } catch (err: any) {
-      console.error('Print receipt error:', err);
-      setError(err?.message || 'Chop etishda xatolik yuz berdi');
-      setPrinting(false);
+      syncPrintableDom(html);
     }
+
+    // Trigger window.print() after 200ms to allow React state & DOM to settle
+    setTimeout(() => {
+      try {
+        window.focus();
+        window.print();
+      } catch (err) {
+        console.warn('Browser print dialog invocation:', err);
+      } finally {
+        setPrinting(false);
+      }
+    }, 200);
+  };
+
+  // Helper to sync the current HTML into the #printable-area container
+  const syncPrintableDom = (html: string) => {
+    let el = document.getElementById('printable-area');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'printable-area';
+      el.className = 'hidden print:block';
+      document.body.appendChild(el);
+    }
+    el.innerHTML = html;
   };
 
   // Open in dedicated clean window/tab (Guaranteed to bypass iframe sandbox restrictions)
@@ -301,6 +334,15 @@ export function OrderPrintModal({ open, orderId, onClose }: Props) {
             </div>
           </div>
         )}
+
+        {/* Native Printable Area - Hidden on screen, visible during browser print */}
+        <div
+          id="printable-area"
+          className="hidden print:block"
+          dangerouslySetInnerHTML={{
+            __html: activePrintType === 'contract' ? contractHtml : simpleHtml,
+          }}
+        />
 
         {/* Bottom Actions */}
         <div className="flex items-center justify-between border-t border-slate-100 pt-3">

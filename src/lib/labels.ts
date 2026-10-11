@@ -95,15 +95,16 @@ export function downloadHtmlFile(html: string, filename: string): void {
 }
 
 export async function printHtml(html: string): Promise<void> {
-  // 1. Update main DOM #printable-area for native @media print (Ctrl+P / window.print)
+  // Update main DOM #printable-area for native @media print (Ctrl+P / window.print)
   let printArea = document.getElementById('printable-area');
   if (!printArea) {
     printArea = document.createElement('div');
     printArea.id = 'printable-area';
+    printArea.className = 'hidden print:block';
     document.body.appendChild(printArea);
   }
 
-  // Extract body content or insert safe wrapped html
+  // Extract head styles and body content
   const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
   const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
   const stylesOnly = headMatch ? headMatch[1] : '';
@@ -111,45 +112,9 @@ export async function printHtml(html: string): Promise<void> {
 
   printArea.innerHTML = `<div>${stylesOnly}${bodyContent}</div>`;
 
-  // 2. Also prepare a full isolated hidden iframe for browser engines that prefer iframe print
-  try {
-    const frame = document.createElement('iframe');
-    frame.setAttribute('title', 'Print Document');
-    frame.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:-9999;opacity:0.01;pointer-events:none;border:none;';
-    document.body.appendChild(frame);
+  // Wait 200ms to guarantee DOM reflow and styling application before triggering window.print
+  await new Promise(r => setTimeout(r, 200));
 
-    const doc = frame.contentDocument || frame.contentWindow?.document;
-    const win = frame.contentWindow;
-
-    if (doc && win) {
-      doc.open();
-      // Auto-trigger print inside the isolated document if possible
-      const autoPrintHtml = html.replace('</body>', `<script>window.onload = function() { window.focus(); };</script></body>`);
-      doc.write(autoPrintHtml);
-      doc.close();
-
-      await new Promise(r => setTimeout(r, 250));
-      
-      try {
-        win.focus();
-        win.print();
-      } catch (iframeErr) {
-        console.warn('Iframe print blocked, falling back to window.print():', iframeErr);
-        window.focus();
-        window.print();
-      }
-
-      setTimeout(() => {
-        try { frame.remove(); } catch {}
-      }, 60000);
-      return;
-    }
-  } catch (err) {
-    console.warn('Iframe print setup error, using main window:', err);
-  }
-
-  // Direct fallback
-  await new Promise(r => setTimeout(r, 150));
   try {
     window.focus();
     window.print();

@@ -188,24 +188,22 @@ body {
 }
 
 @media print {
-  html, body {
-    background: #ffffff !important;
-    color: #000000 !important;
-    margin: 0 !important;
-    padding: 0 !important;
+  body * {
+    visibility: hidden !important;
   }
-  body > *:not(#printable-area) {
-    display: none !important;
+  #printable-area, #printable-area * {
+    visibility: visible !important;
   }
   #printable-area {
     display: block !important;
-    position: static !important;
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
     width: 100% !important;
     margin: 0 !important;
     padding: 0 !important;
-    visibility: visible !important;
-  }
-  #printable-area * {
-    visibility: visible !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    z-index: 99999 !important;
   }
 }
