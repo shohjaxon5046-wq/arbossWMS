@@ -1,14 +1,17 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Building2, Save, Languages, Check, Database, Download, Upload, RotateCcw } from 'lucide-react';
+import { Building2, Save, Languages, Check, Database, Download, Upload, RotateCcw, Activity, ShieldCheck, Settings } from 'lucide-react';
 import { supabase, resetDatabaseToDefaults, exportDatabaseBackup, importDatabaseBackup } from '@/lib/supabase';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { LoadingSpinner, ErrorState, PageHeader } from '@/components/ui/States';
 import { TelegramBotCard } from '@/components/settings/TelegramBotCard';
+import { MonitoringDashboard } from '@/components/monitoring/MonitoringDashboard';
+import { TestSuiteDashboard } from '@/components/testing/TestSuiteDashboard';
 
 export function SettingsPage() {
   const { t, lang, setLang } = useApp();
   const { staff } = useAuth();
+  const [activeTab, setActiveTab] = useState<'general' | 'monitoring' | 'tests'>('general');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
@@ -97,10 +100,54 @@ export function SettingsPage() {
     <div className="space-y-6">
       <PageHeader
         title={t('systemSettings')}
-        subtitle={lang === 'uz' ? 'Kompaniya ma\'lumotlari, tariflar, zaxira va tizim sozlamalari' : 'Параметры компании, тарифы, резервные копии и интеграции'}
+        subtitle={lang === 'uz' ? 'Kompaniya ma\'lumotlari, tariflar, zaxira va tizim diagnostikasi' : 'Параметры компании, тарифы, резервные копии и диагностика'}
       />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      {/* Settings Navigation Tabs */}
+      <div className="flex border-b border-slate-200 dark:border-slate-800">
+        <button
+          onClick={() => setActiveTab('general')}
+          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-semibold transition ${
+            activeTab === 'general'
+              ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Settings className="h-4 w-4" />
+          <span>{lang === 'uz' ? 'Tizim sozlamalari' : 'Настройки системы'}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('monitoring')}
+          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-semibold transition ${
+            activeTab === 'monitoring'
+              ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <Activity className="h-4 w-4" />
+          <span>{lang === 'uz' ? 'Xatoliklar monitoringi (Sentry & APM)' : 'Мониторинг ошибок'}</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('tests')}
+          className={`flex items-center gap-2 border-b-2 px-4 py-3 text-xs font-semibold transition ${
+            activeTab === 'tests'
+              ? 'border-blue-600 text-blue-600 dark:border-blue-400 dark:text-blue-400'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          <ShieldCheck className="h-4 w-4" />
+          <span>{lang === 'uz' ? 'Avtomatlashtirilgan testlar (Test Suite)' : 'Авто-тесты'}</span>
+        </button>
+      </div>
+
+      {activeTab === 'monitoring' && <MonitoringDashboard />}
+      {activeTab === 'tests' && <TestSuiteDashboard />}
+
+      {activeTab === 'general' && (
+        <>
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Company Info */}
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center gap-2">
@@ -227,22 +274,24 @@ export function SettingsPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
-        <button
-          type="button"
-          onClick={handleSave}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-600/30 transition hover:bg-blue-700"
-        >
-          <Save className="h-4 w-4" />
-          <span>{t('saveSettings')}</span>
-        </button>
-        {saved && (
-          <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
-            <Check className="h-4 w-4" />
-            <span>{t('settingsSaved')}</span>
-          </span>
-        )}
-      </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleSave}
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-600/30 transition hover:bg-blue-700"
+          >
+            <Save className="h-4 w-4" />
+            <span>{t('saveSettings')}</span>
+          </button>
+          {saved && (
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
+              <Check className="h-4 w-4" />
+              <span>{t('settingsSaved')}</span>
+            </span>
+          )}
+        </div>
+      </>
+      )}
     </div>
   );
 }

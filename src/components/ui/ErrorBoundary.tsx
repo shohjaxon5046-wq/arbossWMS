@@ -1,5 +1,6 @@
 import React, { Component, type ErrorInfo, type ReactNode } from 'react';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { AlertTriangle, RefreshCw, Send } from 'lucide-react';
+import { monitoring } from '@/lib/monitoring';
 
 interface Props {
   children: ReactNode;
@@ -9,24 +10,41 @@ interface Props {
 interface State {
   hasError: boolean;
   error: Error | null;
+  reported: boolean;
 }
 
 export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, reported: false };
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
+    return { hasError: true, error, reported: false };
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     console.error('ErrorBoundary caught an unhandled error:', error, errorInfo);
+    monitoring.captureException(error, {
+      source: 'react_boundary',
+      level: 'error',
+      componentStack: errorInfo.componentStack,
+    });
   }
 
   handleRetry = () => {
-    this.setState({ hasError: false, error: null });
+    this.setState({ hasError: false, error: null, reported: false });
+  };
+
+  handleReport = () => {
+    if (this.state.error) {
+      monitoring.captureException(this.state.error, {
+        source: 'user_report',
+        level: 'warning',
+        userNotes: 'User clicked report error in UI',
+      });
+      this.setState({ reported: true });
+    }
   };
 
   render() {
@@ -42,13 +60,28 @@ export class ErrorBoundary extends Component<Props, State> {
           <p className="mt-1.5 max-w-md text-xs text-slate-500 dark:text-slate-400">
             {this.state.error?.message || 'Kutilmagan texnik muammo aniqlandi.'}
           </p>
-          <button
-            onClick={this.handleRetry}
-            className="mt-4 flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            <span>Qayta urinish</span>
-          </button>
+          <div className="mt-4 flex items-center gap-3">
+            <button
+              onClick={this.handleRetry}
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-blue-700"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span>Qayta urinish</span>
+            </button>
+            {!this.state.reported ? (
+              <button
+                onClick={this.handleReport}
+                className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+              >
+                <Send className="h-3.5 w-3.5 text-blue-600" />
+                <span>Texnik guruhga xabar berish</span>
+              </button>
+            ) : (
+              <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                ✓ Xatolik monitoringga qayd etildi
+              </span>
+            )}
+          </div>
         </div>
       );
     }

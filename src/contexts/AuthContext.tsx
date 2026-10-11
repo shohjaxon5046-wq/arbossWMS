@@ -3,6 +3,7 @@ import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import type { Staff, UserRole } from '@/types';
 import { INITIAL_STAFF } from '@/lib/mockData';
+import { monitoring } from '@/lib/monitoring';
 
 interface AuthContextValue {
   session: Session | null;
@@ -48,6 +49,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authListener?.subscription?.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (staff) {
+      monitoring.setUser({ id: staff.id, name: staff.full_name, email: staff.email, role: staff.role });
+    } else {
+      monitoring.setUser(null);
+    }
+  }, [staff]);
 
   async function loadStaff(userId: string, email?: string) {
     try {

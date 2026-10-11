@@ -12,53 +12,64 @@ import {
 
 // Local storage storage keys
 const DB_PREFIX = 'arboss_db_';
+const memoryStore = new Map<string, any>();
+
+function getStorage(): Storage | null {
+  try {
+    if (typeof localStorage !== 'undefined') return localStorage;
+    if (typeof globalThis !== 'undefined' && (globalThis as any).localStorage) return (globalThis as any).localStorage;
+  } catch {
+    // ignore
+  }
+  return null;
+}
 
 function getStoredTable<T>(key: string, defaultData: T[]): T[] {
   try {
-    const raw = localStorage.getItem(DB_PREFIX + key);
-    if (!raw) return defaultData;
-    return JSON.parse(raw);
+    const storage = getStorage();
+    if (storage) {
+      const raw = storage.getItem(DB_PREFIX + key);
+      if (raw) return JSON.parse(raw);
+    }
   } catch {
-    return defaultData;
+    // fallback to memory
   }
+  if (memoryStore.has(key)) {
+    return memoryStore.get(key);
+  }
+  return defaultData;
 }
 
 function setStoredTable<T>(key: string, data: T[]) {
+  memoryStore.set(key, data);
   try {
-    localStorage.setItem(DB_PREFIX + key, JSON.stringify(data));
+    const storage = getStorage();
+    if (storage) {
+      storage.setItem(DB_PREFIX + key, JSON.stringify(data));
+    }
   } catch {
     // ignore quota errors
   }
 }
 
 export function resetDatabaseToDefaults() {
-  localStorage.removeItem(DB_PREFIX + 'erp_staff');
-  localStorage.removeItem(DB_PREFIX + 'erp_categories');
-  localStorage.removeItem(DB_PREFIX + 'erp_warehouse_locations');
-  localStorage.removeItem(DB_PREFIX + 'erp_product_models');
-  localStorage.removeItem(DB_PREFIX + 'erp_product_items');
-  localStorage.removeItem(DB_PREFIX + 'erp_suppliers');
-  localStorage.removeItem(DB_PREFIX + 'erp_customers');
-  localStorage.removeItem(DB_PREFIX + 'erp_orders');
-  localStorage.removeItem(DB_PREFIX + 'erp_order_items');
-  localStorage.removeItem(DB_PREFIX + 'erp_cash_registers');
-  localStorage.removeItem(DB_PREFIX + 'erp_expenses');
-  localStorage.removeItem(DB_PREFIX + 'erp_order_payments');
-  localStorage.removeItem(DB_PREFIX + 'erp_service_partners');
-  localStorage.removeItem(DB_PREFIX + 'erp_service_orders');
-  localStorage.removeItem(DB_PREFIX + 'erp_purchase_orders');
-  localStorage.removeItem(DB_PREFIX + 'cargo_items');
-  localStorage.removeItem(DB_PREFIX + 'floor_pricing');
-  localStorage.removeItem(DB_PREFIX + 'lift_types');
-  localStorage.removeItem(DB_PREFIX + 'loader_settings');
-  localStorage.removeItem(DB_PREFIX + 'equipment');
-  localStorage.removeItem(DB_PREFIX + 'equipment_settings');
-  localStorage.removeItem(DB_PREFIX + 'waste_vehicles');
-  localStorage.removeItem(DB_PREFIX + 'waste_types');
-  localStorage.removeItem(DB_PREFIX + 'waste_settings');
-  localStorage.removeItem(DB_PREFIX + 'logistics_orders');
-  localStorage.removeItem(DB_PREFIX + 'erp_settings');
-  window.location.reload();
+  memoryStore.clear();
+  const storage = getStorage();
+  if (storage) {
+    const tables = [
+      'erp_staff', 'erp_categories', 'erp_warehouse_locations', 'erp_product_models',
+      'erp_product_items', 'erp_suppliers', 'erp_customers', 'erp_orders',
+      'erp_order_items', 'erp_cash_registers', 'erp_expenses', 'erp_order_payments',
+      'erp_service_partners', 'erp_service_orders', 'erp_purchase_orders',
+      'cargo_items', 'floor_pricing', 'lift_types', 'loader_settings',
+      'equipment', 'equipment_settings', 'waste_vehicles', 'waste_types',
+      'waste_settings', 'logistics_orders', 'erp_settings'
+    ];
+    tables.forEach(t => storage.removeItem(DB_PREFIX + t));
+  }
+  if (typeof window !== 'undefined' && typeof window.location?.reload === 'function') {
+    window.location.reload();
+  }
 }
 
 export function exportDatabaseBackup(): string {
