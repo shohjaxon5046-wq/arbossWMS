@@ -63,44 +63,98 @@ export async function printLabels(labels: Label[], format: LabelFormat): Promise
   await printHtml(html);
 }
 
+export function openHtmlInNewTab(html: string): void {
+  try {
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, '_blank');
+    if (win) {
+      win.focus();
+      // Revoke after a minute
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+  } catch (err) {
+    console.error('Failed to open HTML in new tab:', err);
+  }
+}
+
+export function downloadHtmlFile(html: string, filename: string): void {
+  try {
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+  } catch (err) {
+    console.error('Failed to download HTML file:', err);
+  }
+}
+
 export async function printHtml(html: string): Promise<void> {
-  // 1. Inject into main DOM #printable-area for safe @media print rendering
+  // 1. Update main DOM #printable-area for native @media print (Ctrl+P / window.print)
   let printArea = document.getElementById('printable-area');
   if (!printArea) {
     printArea = document.createElement('div');
     printArea.id = 'printable-area';
-    printArea.className = 'hidden print:block';
     document.body.appendChild(printArea);
   }
-  printArea.innerHTML = html;
 
-  // 2. Wait for DOM update
-  await new Promise(r => setTimeout(r, 200));
+  // Extract body content or insert safe wrapped html
+  const bodyMatch = html.match(/<body[^>]*>([\s\S]*?)<\/body>/i);
+  const headMatch = html.match(/<head[^>]*>([\s\S]*?)<\/head>/i);
+  const stylesOnly = headMatch ? headMatch[1] : '';
+  const bodyContent = bodyMatch ? bodyMatch[1] : html;
 
-  // 3. Trigger window.print
+  printArea.innerHTML = `<div>${stylesOnly}${bodyContent}</div>`;
+
+  // 2. Also prepare a full isolated hidden iframe for browser engines that prefer iframe print
+  try {
+    const frame = document.createElement('iframe');
+    frame.setAttribute('title', 'Print Document');
+    frame.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:-9999;opacity:0.01;pointer-events:none;border:none;';
+    document.body.appendChild(frame);
+
+    const doc = frame.contentDocument || frame.contentWindow?.document;
+    const win = frame.contentWindow;
+
+    if (doc && win) {
+      doc.open();
+      // Auto-trigger print inside the isolated document if possible
+      const autoPrintHtml = html.replace('</body>', `<script>window.onload = function() { window.focus(); };</script></body>`);
+      doc.write(autoPrintHtml);
+      doc.close();
+
+      await new Promise(r => setTimeout(r, 250));
+      
+      try {
+        win.focus();
+        win.print();
+      } catch (iframeErr) {
+        console.warn('Iframe print blocked, falling back to window.print():', iframeErr);
+        window.focus();
+        window.print();
+      }
+
+      setTimeout(() => {
+        try { frame.remove(); } catch {}
+      }, 60000);
+      return;
+    }
+  } catch (err) {
+    console.warn('Iframe print setup error, using main window:', err);
+  }
+
+  // Direct fallback
+  await new Promise(r => setTimeout(r, 150));
   try {
     window.focus();
     window.print();
-  } catch (err) {
-    console.warn('Direct window.print encountered an issue, trying iframe fallback:', err);
-    try {
-      const frame = document.createElement('iframe');
-      frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
-      document.body.appendChild(frame);
-      const doc = frame.contentDocument;
-      const win = frame.contentWindow;
-      if (doc && win) {
-        doc.open();
-        doc.write(html);
-        doc.close();
-        await new Promise(r => setTimeout(r, 150));
-        win.focus();
-        win.print();
-        setTimeout(() => frame.remove(), 60000);
-      }
-    } catch (frameErr) {
-      console.error('Print iframe fallback error:', frameErr);
-    }
+  } catch (winErr) {
+    console.error('window.print error:', winErr);
   }
 }
 

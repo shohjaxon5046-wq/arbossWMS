@@ -7,9 +7,10 @@ interface ModalProps {
   title: string;
   children: ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl';
+  zIndex?: string;
 }
 
-export function Modal({ open, onClose, title, children, size = 'md' }: ModalProps) {
+export function Modal({ open, onClose, title, children, size = 'md', zIndex = 'z-50' }: ModalProps) {
   if (!open) return null;
 
   const sizeClass = {
@@ -20,7 +21,7 @@ export function Modal({ open, onClose, title, children, size = 'md' }: ModalProp
   }[size];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in">
+    <div className={`fixed inset-0 ${zIndex} flex items-center justify-center p-4 animate-fade-in`}>
       <div className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm" onClick={onClose} />
       <div className={`relative w-full ${sizeClass} max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-800 dark:bg-slate-900 animate-slide-up`}>
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4 dark:border-slate-800">

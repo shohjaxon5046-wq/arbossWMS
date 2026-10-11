@@ -99,14 +99,6 @@ export function OrderDetailModal({ orderId, onClose, onChanged }: Props) {
       } else {
         await printContractA4(bundle, t);
       }
-      setTimeout(() => {
-        try {
-          window.focus();
-          window.print();
-        } catch (e) {
-          console.warn('Window print error:', e);
-        }
-      }, 200);
     } catch (err) {
       setNotice({ kind: 'error', text: t(ordersErrorKey(err)) });
     } finally {
