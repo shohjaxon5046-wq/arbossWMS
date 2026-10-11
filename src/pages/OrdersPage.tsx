@@ -157,7 +157,7 @@ export function OrdersPage({ initialSearch }: { initialSearch?: string }) {
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-50 dark:bg-slate-800/50">
                     <tr>
-                      <th className="px-4 py-3 font-medium text-slate-500">{t('ordNumber')}</th>
+                      <th className="px-4 py-3 font-medium text-slate-500">{t('orderNumber')}</th>
                       <th className="px-4 py-3 font-medium text-slate-500">{t('customer')}</th>
                       <th className="px-4 py-3 font-medium text-slate-500">{t('total')} / {t('debt')}</th>
                       <th className="px-4 py-3 font-medium text-slate-500">{t('date')}</th>
@@ -188,7 +188,7 @@ export function OrdersPage({ initialSearch }: { initialSearch?: string }) {
                           </td>
                           <td className="px-4 py-3 text-slate-600 dark:text-slate-300">
                             {formatDate(o.created_at)}
-                            <p className="text-xs text-slate-400">{t('by')}: {o.created_by}</p>
+                            <p className="text-xs text-slate-400">Xodim: {o.created_by}</p>
                           </td>
                           <td className="px-4 py-3">
                             <span className={`badge ${getStatusColor(o.status)}`}>{t(o.status as TranslationKey)}</span>
@@ -252,7 +252,7 @@ export function OrdersPage({ initialSearch }: { initialSearch?: string }) {
         <OrderDetailModal 
           orderId={detailId} 
           onClose={() => setDetailId(null)} 
-          onChange={loadData} 
+          onChanged={loadData} 
         />
       )}
     </div>

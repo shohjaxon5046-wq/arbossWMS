@@ -58,7 +58,7 @@ export function ModelModal({ open, model, categories, canEdit, canEditPrices, on
   useEffect(() => {
     if (!open || !savedId) { setItems([]); return; }
     let cancelled = false;
-    supabase.from('erp_product_items').select('*').eq('model_id', savedId).order('serial_number').then(({ data, error }) => {
+    supabase.from('erp_product_items').select('*').eq('model_id', savedId).order('serial_number').then(({ data, error }: any) => {
       if (cancelled) return;
       if (error) setNotice({ kind: 'error', text: t(ordersErrorKey(error)) });
       else setItems((data ?? []) as ProductItem[]);

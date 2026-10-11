@@ -108,14 +108,16 @@ export function CatalogPage({ initialSearch }: { initialSearch?: string }) {
 
   const usedCategories = useMemo(() => Array.from(new Set(models.map(m => m.category).filter(Boolean))).sort(), [models]);
 
-  const filtered = models.filter(m => {
-    if (categoryFilter && m.category !== categoryFilter) return false;
-    if (availabilityFilter === 'available' && m.available_units === 0) return false;
-    if (availabilityFilter === 'rented' && m.total_units - m.available_units === 0) return false;
-    if (availabilityFilter === 'empty' && m.total_units > 0) return false;
-    const q = search.toLowerCase();
-    return [m.name, m.brand, m.category, m.model_code].some(v => (v ?? '').toLowerCase().includes(q));
-  });
+  const filtered = useMemo(() => {
+    return models.filter(m => {
+      if (categoryFilter && m.category !== categoryFilter) return false;
+      if (availabilityFilter === 'available' && m.available_units === 0) return false;
+      if (availabilityFilter === 'rented' && m.total_units - m.available_units === 0) return false;
+      if (availabilityFilter === 'empty' && m.total_units > 0) return false;
+      const q = search.toLowerCase();
+      return [m.name, m.brand, m.category, m.model_code].some(v => (v ?? '').toLowerCase().includes(q));
+    });
+  }, [models, categoryFilter, availabilityFilter, search]);
 
   if (loading) return <LoadingSpinner text={t('loading')} />;
   if (error) return <ErrorState message={error} />;

@@ -165,7 +165,7 @@ export function ReceivingTab({ data, canManage, reload, onGoToPutaway }: Props) 
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 dark:bg-slate-800/50">
                 <tr>
-                  <th className="px-4 py-3 font-medium text-slate-500">{t('ordNumber')}</th>
+                  <th className="px-4 py-3 font-medium text-slate-500">{t('orderNumber')}</th>
                   <th className="px-4 py-3 font-medium text-slate-500">{t('supplier')}</th>
                   <th className="px-4 py-3 font-medium text-slate-500">{t('date')}</th>
                   <th className="px-4 py-3 font-medium text-slate-500">{t('status')}</th>

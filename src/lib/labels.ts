@@ -12,8 +12,15 @@ export function qrSvg(value: string): Promise<string> {
   return QRCode.toString(value, { type: 'svg', margin: 0, errorCorrectionLevel: 'M' });
 }
 
-export const escapeHtml = (s: string) =>
-  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+export const escapeHtml = (val: unknown): string => {
+  if (val === null || val === undefined) return '';
+  return String(val)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+};
 
 const styles: Record<LabelFormat, string> = {
   a4: `

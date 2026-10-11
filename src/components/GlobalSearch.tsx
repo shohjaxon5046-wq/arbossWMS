@@ -42,7 +42,7 @@ async function runSearch(raw: string, allowed: PageId[]): Promise<Result[]> {
         .or(`order_number.ilike.${like},customer_name.ilike.${like},customer_phone.ilike.${like}`)
         .order('created_at', { ascending: false }).limit(5);
       if (error) throw error;
-      return (data ?? []).map(o => ({
+      return (data ?? []).map((o: any) => ({
         id: `o-${o.id}`, group: 'searchOrders' as const, page: 'orders' as const, query: o.order_number,
         title: o.order_number, subtitle: `${o.customer_name} ${o.customer_phone ?? ''}`.trim(), status: o.status,
       }));
@@ -56,7 +56,7 @@ async function runSearch(raw: string, allowed: PageId[]): Promise<Result[]> {
         .or(`full_name.ilike.${like},phone_primary.ilike.${like},phone_secondary.ilike.${like},passport_number.ilike.${like}`)
         .limit(5);
       if (error) throw error;
-      return (data ?? []).map(c => ({
+      return (data ?? []).map((c: any) => ({
         id: `c-${c.id}`, group: 'searchCustomers' as const, page: 'crm' as const, query: c.full_name,
         title: c.full_name, subtitle: c.phone_primary ?? '',
       }));
@@ -70,7 +70,7 @@ async function runSearch(raw: string, allowed: PageId[]): Promise<Result[]> {
         .or(`serial_number.ilike.${like},barcode.ilike.${like}`)
         .limit(5);
       if (error) throw error;
-      return (data ?? []).map(i => {
+      return (data ?? []).map((i: any) => {
         const model = i.erp_product_models as unknown as { name: string } | null;
         return {
           id: `i-${i.id}`, group: 'searchEquipment' as const, page: 'inbound' as const, tab: 'stock', query: i.serial_number,
@@ -87,7 +87,7 @@ async function runSearch(raw: string, allowed: PageId[]): Promise<Result[]> {
         .or(`name.ilike.${like},brand.ilike.${like},category.ilike.${like}`)
         .limit(5);
       if (error) throw error;
-      return (data ?? []).map(m => ({
+      return (data ?? []).map((m: any) => ({
         id: `m-${m.id}`, group: 'searchModels' as const, page: 'catalog' as const, query: m.name,
         title: m.name, subtitle: [m.brand, m.category].filter(Boolean).join(' · '),
       }));
@@ -101,7 +101,7 @@ async function runSearch(raw: string, allowed: PageId[]): Promise<Result[]> {
         .or(`company_name.ilike.${like},phone_primary.ilike.${like}`)
         .limit(5);
       if (error) throw error;
-      return (data ?? []).map(p => ({
+      return (data ?? []).map((p: any) => ({
         id: `p-${p.id}`, group: 'searchPartners' as const, page: 'partners' as const, tab: 'partners', query: p.company_name,
         title: p.company_name, subtitle: `${p.service_category} · ${p.phone_primary ?? ''}`, status: p.status,
       }));
@@ -112,7 +112,7 @@ async function runSearch(raw: string, allowed: PageId[]): Promise<Result[]> {
         .or(`order_number.ilike.${like},customer_name.ilike.${like},customer_phone.ilike.${like}`)
         .order('created_at', { ascending: false }).limit(5);
       if (error) throw error;
-      return (data ?? []).map(s => {
+      return (data ?? []).map((s: any) => {
         const parent = s.erp_orders as unknown as { order_number: string } | null;
         return {
         id: `s-${s.id}`, group: 'searchServiceOrders' as const, page: 'orders' as const, query: parent?.order_number ?? s.customer_name,

@@ -70,7 +70,7 @@ export function SupplierCardModal({ supplier, onClose, onUpdate }: Props) {
 
   return (
     <>
-      <Modal open={!!supplier} onClose={onClose} title="Yetkazib beruvchi kartochkasi" size="2xl">
+      <Modal open={!!supplier} onClose={onClose} title="Yetkazib beruvchi kartochkasi" size="xl">
         <div className="space-y-6">
           {/* Header Info */}
           <div className="flex items-start justify-between rounded-xl bg-slate-50 p-5 dark:bg-slate-800/50">

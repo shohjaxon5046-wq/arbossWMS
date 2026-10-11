@@ -135,7 +135,7 @@ export async function loadOrderBundle(orderId: string): Promise<OrderBundle> {
     items: (itemsRes.data || []) as OrderItem[],
     services,
     payments: (paymentsRes.data || []) as OrderPayment[],
-    partnerNames: Object.fromEntries((partnersRes.data || []).map(p => [p.id, p.company_name])),
+    partnerNames: Object.fromEntries((partnersRes.data || []).map((p: any) => [p.id, p.company_name])),
     passport,
   };
 }

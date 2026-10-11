@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import type { Staff } from '@/types';
+import type { Staff, UserRole } from '@/types';
+import { INITIAL_STAFF } from '@/lib/mockData';
 
 interface AuthContextValue {
   session: Session | null;
@@ -9,6 +10,7 @@ interface AuthContextValue {
   staff: Staff | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  switchRole: (role: UserRole) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -21,21 +23,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
-      if (data.session?.user) {
-        loadStaff(data.session.user.id);
+    supabase.auth.getSession().then(({ data }: any) => {
+      setSession(data?.session ?? null);
+      setUser(data?.session?.user ?? null);
+      if (data?.session?.user) {
+        loadStaff(data.session.user.id, data.session.user.email);
       } else {
         setLoading(false);
       }
     });
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event: any, newSession: any) => {
       setSession(newSession);
       setUser(newSession?.user ?? null);
       if (newSession?.user) {
-        loadStaff(newSession.user.id);
+        loadStaff(newSession.user.id, newSession.user.email);
       } else {
         setStaff(null);
         setLoading(false);
@@ -43,37 +45,83 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     return () => {
-      authListener.subscription.unsubscribe();
+      authListener?.subscription?.unsubscribe();
     };
   }, []);
 
-  async function loadStaff(userId: string) {
-    const { data, error } = await supabase
-      .from('erp_staff')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
+  async function loadStaff(userId: string, email?: string) {
+    try {
+      const { data } = await supabase
+        .from('erp_staff')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
 
-    if (error) {
-      console.error('Error loading staff:', error);
+      if (data) {
+        setStaff(data as Staff);
+      } else if (email) {
+        const { data: staffByEmail } = await supabase
+          .from('erp_staff')
+          .select('*')
+          .eq('email', email)
+          .maybeSingle();
+
+        if (staffByEmail) {
+          setStaff(staffByEmail as Staff);
+        } else {
+          // Fallback to default admin staff
+          setStaff(INITIAL_STAFF[0]);
+        }
+      } else {
+        setStaff(INITIAL_STAFF[0]);
+      }
+    } catch {
+      setStaff(INITIAL_STAFF[0]);
+    } finally {
+      setLoading(false);
     }
-    setStaff(data as Staff | null);
-    setLoading(false);
+  }
+
+  async function switchRole(role: UserRole) {
+    const { data } = await supabase.from('erp_staff').select('*').eq('role', role).maybeSingle();
+    const targetStaff = data || INITIAL_STAFF.find(s => s.role === role) || INITIAL_STAFF[0];
+    setStaff(targetStaff as Staff);
+
+    const updatedSession = {
+      access_token: 'demo-token-' + targetStaff.id,
+      token_type: 'bearer',
+      expires_in: 3600,
+      user: {
+        id: targetStaff.user_id || `user-${targetStaff.id}`,
+        email: targetStaff.email,
+        user_metadata: { full_name: targetStaff.full_name, role: targetStaff.role },
+      },
+    };
+    localStorage.setItem('arboss_auth_session', JSON.stringify(updatedSession));
+    setSession(updatedSession as any);
+    setUser(updatedSession.user as any);
   }
 
   async function signIn(email: string, password: string): Promise<{ error: string | null }> {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { error: error.message };
+    if (data?.session?.user) {
+      setSession(data.session);
+      setUser(data.session.user);
+      await loadStaff(data.session.user.id, data.session.user.email);
+    }
     return { error: null };
   }
 
   async function signOut() {
     await supabase.auth.signOut();
+    setSession(null);
+    setUser(null);
     setStaff(null);
   }
 
   return (
-    <AuthContext.Provider value={{ session, user, staff, loading, signIn, signOut }}>
+    <AuthContext.Provider value={{ session, user, staff, loading, signIn, switchRole, signOut }}>
       {children}
     </AuthContext.Provider>
   );

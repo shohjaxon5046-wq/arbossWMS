@@ -1,0 +1,6 @@
+{
+  "name": "Arboss WMS & Arenda ERP",
+  "description": "Qurilish uskunalari ijarasi, ombor boshqaruvi (WMS), logistika kalkulyatori, mijozlar CRM va AI yordamchi tizimi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

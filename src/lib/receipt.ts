@@ -9,7 +9,7 @@ type Translate = (key: TranslationKey) => string;
 async function loadCompany() {
   const { data } = await supabase.from('erp_settings').select('key, value')
     .in('key', ['company_name', 'company_phone', 'company_address']);
-  const map = Object.fromEntries((data || []).map(r => [r.key, r.value as Record<string, string>]));
+  const map = Object.fromEntries((data || []).map((r: any) => [r.key, r.value as Record<string, string>]));
   return {
     name: map.company_name?.name || 'WMS Arenda ERP',
     phone: map.company_phone?.phone || '',
