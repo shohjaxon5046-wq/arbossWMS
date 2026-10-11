@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Plus, Pencil, Trash2, Truck, Search, Loader2, Phone,
   CheckCircle2, XCircle, Wrench, Users, Shield, ArrowUpRight,
-  Filter, Sparkles, AlertCircle, RefreshCw, Star
+  Filter, Sparkles, AlertCircle, RefreshCw, Star, Calculator
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useApp } from '@/contexts/AppContext';
@@ -10,6 +10,7 @@ import { normalizePhone, formatCurrency } from '@/lib/format';
 import { SERVICE_CATEGORIES } from '@/lib/orders';
 import { LoadingSpinner, ErrorState, EmptyState, PageHeader } from '@/components/ui/States';
 import { Modal, ConfirmDialog } from '@/components/ui/Modal';
+import { LogisticsCalculatorModal } from '@/components/logistics/LogisticsCalculatorModal';
 import type { ServicePartner, PartnerSpecs } from '@/types';
 
 // Helper to get category details
@@ -86,6 +87,7 @@ export function PartnersPage({ initialSearch }: { initialSearch?: string }) {
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletePartner, setDeletePartner] = useState<ServicePartner | null>(null);
+  const [logisticsCalcOpen, setLogisticsCalcOpen] = useState(false);
 
   // Form State
   const emptyPartnerForm = {
@@ -347,10 +349,19 @@ export function PartnersPage({ initialSearch }: { initialSearch?: string }) {
         title="Hamkorlar va Maxsus Texnikalar"
         subtitle="Avtokranlar, manipulyatorlar, fasad liftlari, chiqindi mashinalari va ishchilar dispetcherligi"
         action={
-          <button onClick={() => openAddPartner()} className="btn-primary flex items-center gap-2 shadow-sm">
-            <Plus className="h-4 w-4" />
-            <span>Yangi texnika / Hamkor qo‘shish</span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setLogisticsCalcOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50/80 px-3.5 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 hover:text-blue-800 transition dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50 shadow-sm"
+            >
+              <Calculator className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+              <span>Logistika Kalkulyatori</span>
+            </button>
+            <button onClick={() => openAddPartner()} className="btn-primary flex items-center gap-2 shadow-sm">
+              <Plus className="h-4 w-4" />
+              <span>Yangi texnika / Hamkor</span>
+            </button>
+          </div>
         }
       />
 
@@ -1252,6 +1263,13 @@ export function PartnersPage({ initialSearch }: { initialSearch?: string }) {
         onConfirm={handleDeletePartner}
         title="Texnikani o‘chirish"
         message={`«${deletePartner?.company_name}» ma'lumotlarini ro‘yxatdan o‘chirishni tasdiqlaysizmi?`}
+      />
+
+      {/* Logistics & Transport Calculator Modal */}
+      <LogisticsCalculatorModal
+        open={logisticsCalcOpen}
+        onClose={() => setLogisticsCalcOpen(false)}
+        partners={partners}
       />
     </div>
   );
