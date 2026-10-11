@@ -1,0 +1,2264 @@
+<!DOCTYPE html>
+<html lang="uz" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ARBOSS RENT — WMS & Arenda ERP</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eff6ff',
+              100: '#dbeafe',
+              500: '#3b82f6',
+              600: '#2563eb',
+              700: '#1d4ed8',
+            },
+            dark: {
+              900: '#090d16',
+              800: '#0f172a',
+              700: '#1e293b',
+              600: '#334155',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- React 18 & ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <!-- Babel Standalone -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: #090d16;
+      color: #f1f5f9;
+    }
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #090d16; }
+    ::-webkit-scrollbar-thumb { background: #334155; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+    /* Print styles */
+    @media print {
+      body * {
+        visibility: hidden;
+      }
+      #print-area, #print-area * {
+        visibility: visible;
+      }
+      #print-area {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        background: white !important;
+        color: black !important;
+        padding: 0;
+        margin: 0;
+      }
+      .no-print {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body class="bg-[#090d16] text-slate-100 min-h-screen">
+  <div id="root"></div>
+
+  <!-- Main Single-File React Code -->
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    // --- INITIAL DATA & STORAGE KEY ---
+    const STORAGE_KEY = 'ARBOSS_RENT_STORAGE_V1';
+
+    const INITIAL_DATA = {
+      usdRate: 12800,
+      lang: 'uz',
+      activeTab: 'orders',
+      location: "7-o'tish joyi Bo'zbozor, 36",
+      geminiApiKey: '',
+      tools: [
+        { id: 'T-101', name: 'Perforator Bosch GBH 2-26', cat: 'Elektr asbob', daily: 85000, deposit: 250000, buyPrice: 1450000, status: 'bosh', totalDays: 32, totalIncome: 2720000, lastUsed: '2026-03-25' },
+        { id: 'T-102', name: 'Otboynik Makita HM1203C', cat: 'Elektr asbob', daily: 180000, deposit: 500000, buyPrice: 4200000, status: 'bosh', totalDays: 20, totalIncome: 3600000, lastUsed: '2026-03-20' },
+        { id: 'T-103', name: 'Generator Honda EG5000 5kW', cat: 'Generator', daily: 250000, deposit: 800000, buyPrice: 11500000, status: 'ijarada', totalDays: 45, totalIncome: 11250000, lastUsed: '2026-04-02' },
+        { id: 'T-104', name: 'Beton vibratori Enar Dingo', cat: 'Beton texnika', daily: 95000, deposit: 300000, buyPrice: 3800000, status: 'bosh', totalDays: 14, totalIncome: 1330000, lastUsed: '2026-03-10' },
+        { id: 'T-105', name: 'Fasad Lesasi 100m²', cat: 'Lesa & Qolip', daily: 130000, deposit: 1200000, buyPrice: 6500000, status: 'ijarada', totalDays: 52, totalIncome: 6760000, lastUsed: '2026-04-01' },
+        { id: 'T-106', name: 'Plitkarez Montolit 75P3', cat: 'Plitka asbobi', daily: 90000, deposit: 300000, buyPrice: 2800000, status: 'bosh', totalDays: 2, totalIncome: 180000, lastUsed: '2026-01-15' },
+      ],
+      customers: [
+        { id: 'C-1', name: 'Alisher Zokirov', phone: '+998 90 312-45-67', passport: 'AA 1234567', jshshir: '31204951230045', blacklist: false, totalSpent: 4200000, debt: 0, ordersCount: 6 },
+        { id: 'C-2', name: 'OOO "City Modern Stroy"', phone: '+998 97 444-12-34', passport: 'AB 9876543', jshshir: '20194857362510', blacklist: false, totalSpent: 18500000, debt: 0, ordersCount: 12 },
+        { id: 'C-3', name: 'Farxod Mahmudov', phone: '+998 94 678-90-12', passport: 'AC 5566778', jshshir: '32501869402847', blacklist: true, reason: 'Uskunani 10 kun kechiktirdi va qarzini to\'lamadi', totalSpent: 850000, debt: 170000, ordersCount: 2 },
+      ],
+      partners: [
+        {
+          id: 'P-1',
+          name: 'OOO "SpetsTexnika Servis"',
+          phone: '+998 90 555-11-22',
+          category: 'kran',
+          commissionPct: 15,
+          notes: 'Toshkent bo\'yicha kranlar va manipulyatorlar parki',
+          fleet: [
+            { id: 'F-101', type: 'avtokran', title: 'Avtokran Kamaz 25t', specs: 'Tonnaj: 25t, Strela: 28m, Min: 3 soat', hourlyRate: 350000, minHours: 3, driver: 'Sherzod (90 111-22-33)', plate: '01 777 AAA', status: 'bosh' },
+            { id: 'F-102', type: 'manipulyator', title: 'Manipulyator Isuzu 5t', specs: 'Bort: 5t, Strela: 3t (12m)', hourlyRate: 220000, minHours: 2, driver: 'Rustam (93 222-33-44)', plate: '01 555 BBB', status: 'bosh' },
+          ]
+        },
+        {
+          id: 'P-2',
+          name: 'ChiqindiTrans Ekologiya',
+          phone: '+998 97 701-44-55',
+          category: 'musor',
+          commissionPct: 12,
+          notes: 'Qurilish chiqindisini utilizatsiya qilish',
+          fleet: [
+            { id: 'F-201', type: 'musor', title: 'ZIL Samasval 5t (10m³)', specs: 'Kuzov: 10 m³, Yuk: 5.0 tonna', tripCityRate: 550000, tripRegionRate: 750000, driver: 'Botir (94 333-44-55)', plate: '01 888 CCC', status: 'bosh', image: 'https://images.unsplash.com/photo-1519003722824-194d4455a60c?w=400&q=80' },
+            { id: 'F-202', type: 'musor', title: 'Kamaz Samasval 10t (15m³)', specs: 'Kuzov: 15 m³, Yuk: 10 tonna', tripCityRate: 850000, tripRegionRate: 1100000, driver: 'Davron (91 444-55-66)', plate: '01 999 DDD', status: 'band', image: 'https://images.unsplash.com/photo-1601584115197-04ecc0da31d7?w=400&q=80' },
+          ]
+        },
+        {
+          id: 'P-3',
+          name: 'Universal Yuk Ko\'taruvchilar Brigadasi',
+          phone: '+998 93 456-78-90',
+          category: 'gruzchik',
+          commissionPct: 20,
+          notes: '15 kishilik tajribali jismoniy ishchilar',
+          fleet: [
+            { id: 'F-301', type: 'gruzchik', title: 'Gruzchiklar Brigadasi (4 kishi)', specs: 'Norma: 50kg/kishi, Soatlik: 65,000 so\'m', hourlyRate: 260000, minHours: 2, driver: 'Brigadir Javlon', plate: '—', status: 'bosh' }
+          ]
+        }
+      ],
+      orders: [
+        {
+          id: 'ORD-901',
+          date: '2026-04-10 10:30',
+          customerName: 'Alisher Zokirov',
+          customerPhone: '+998 90 312-45-67',
+          customerPassport: 'AA 1234567',
+          customerJshshir: '31204951230045',
+          tools: [{ name: 'Perforator Bosch GBH 2-26', days: 3, daily: 85000, deposit: 250000, sum: 255000 }],
+          machinery: null,
+          totalSum: 255000,
+          depositSum: 250000,
+          paidSum: 255000,
+          debtSum: 0,
+          companyRevenue: 255000,
+          partnerRevenue: 0,
+          status: 'bajarildi', // yangi, haydovchiga_uzatildi, jarayonda, bajarildi
+          type: 'tool'
+        },
+        {
+          id: 'ORD-902',
+          date: '2026-04-11 08:45',
+          customerName: 'OOO "City Modern Stroy"',
+          customerPhone: '+998 97 444-12-34',
+          customerPassport: 'AB 9876543',
+          customerJshshir: '20194857362510',
+          tools: [{ name: 'Generator Honda EG5000 5kW', days: 7, daily: 250000, deposit: 800000, sum: 1750000 }],
+          machinery: {
+            title: 'Avtokran Kamaz 25t',
+            partnerName: 'OOO "SpetsTexnika Servis"',
+            location: 'Yunusobod 12-mavze, qurilish',
+            time: '2026-04-11 09:00',
+            estHours: 4,
+            hourlyRate: 350000,
+            machinerySum: 1400000,
+            commissionPct: 15,
+            companyPart: 210000,
+            partnerPart: 1190000,
+          },
+          totalSum: 3150000,
+          depositSum: 800000,
+          paidSum: 3150000,
+          debtSum: 0,
+          companyRevenue: 1960000,
+          partnerRevenue: 1190000,
+          status: 'jarayonda',
+          type: 'mixed'
+        }
+      ],
+      finances: {
+        cashDesk: 18500000,
+        clickPayme: 34200000,
+        bankAccount: 72000000,
+        todayIncome: 3405000,
+      }
+    };
+
+    // Dictionary for UZ / RU
+    const DICT = {
+      uz: {
+        appName: 'ARBOSS RENT',
+        tagline: 'WMS & Arenda ERP',
+        location: "7-o'tish joyi Bo'zbozor, 36",
+        freeTools: "Bo'sh asboblar",
+        activeRents: "Faol ijaralar",
+        clientsCount: "Mijozlar soni",
+        todayCash: "Bugungi tushum",
+        newOrderPos: "Yangi Buyurtma (POS)",
+        tabOrders: "🛒 Buyurtmalar",
+        tabTools: "🧰 Asboblarim",
+        tabIntake: "📥 Kirim",
+        tabBoard: "📋 Tablo",
+        tabClients: "👥 Mijozlar",
+        tabPartners: "🏗️ Hamkorlar & Texnika",
+        tabAnalytics: "📊 Analitika",
+        tabFinance: "💰 Moliya & Kassa",
+        quickOrderTitle: "Tezkor Buyurtma (Kassa / POS)",
+        clientSection: "1. Mijoz ma'lumotlari",
+        toolsSection: "2. Ijara asboblari",
+        machinerySection: "3. Maxsus texnika / Hamkor",
+        financeSection: "4. Hisob-kitob va Komissiya",
+        searchClientPlaceholder: "Mijoz ismi yoki tel raqami...",
+        createClient: "+ Yangi mijoz",
+        printCashReceipt: "🧾 Oddiy Kassa Cheki",
+        printContract: "📄 Shartnoma-Chek (A4)",
+        smartOptimizer: "Aqlli Optimizer (Lift vs Gruzchik)",
+        weightKg: "Yuk og'irligi (kg)",
+        floor: "Qavat (1 - 25)",
+        hasCargoLift: "Yuk lifti bormi?",
+        oversized: "Noqulay yuk (GKL / Profil / Truba)?",
+        calcResult: "Hisob natijasi",
+        optimalChoice: "ENG OPTIMAL VARIANT ⭐️",
+        aiCopilot: "Arboss AI Yordamchi",
+      },
+      ru: {
+        appName: 'ARBOSS RENT',
+        tagline: 'WMS & Аренда ERP',
+        location: "7-проход Бузбозор, 36",
+        freeTools: "Свободные инструменты",
+        activeRents: "Активная аренда",
+        clientsCount: "Клиенты",
+        todayCash: "Касса за сегодня",
+        newOrderPos: "Новый Заказ (POS)",
+        tabOrders: "🛒 Заказы",
+        tabTools: "🧰 Инструменты",
+        tabIntake: "📥 Приёмка",
+        tabBoard: "📋 Табло",
+        tabClients: "👥 Клиенты",
+        tabPartners: "🏗️ Партнеры & Спецтехника",
+        tabAnalytics: "📊 Аналитика",
+        tabFinance: "💰 Финансы & Касса",
+        quickOrderTitle: "Быстрый заказ (Касса / POS)",
+        clientSection: "1. Данные клиента",
+        toolsSection: "2. Инструменты в аренду",
+        machinerySection: "3. Спецтехника / Партнеры",
+        financeSection: "4. Финансы и комиссия",
+        searchClientPlaceholder: "Поиск клиента или телефон...",
+        createClient: "+ Новый клиент",
+        printCashReceipt: "🧾 Кассовый чек (80мм)",
+        printContract: "📄 Договор-Чек (А4)",
+        smartOptimizer: "Умный оптимизатор (Лифт vs Грузчики)",
+        weightKg: "Вес груза (кг)",
+        floor: "Этаж (1 - 25)",
+        hasCargoLift: "Есть грузовой лифт?",
+        oversized: "Негабаритный груз (ГКЛ / Профиль)?",
+        calcResult: "Результат расчета",
+        optimalChoice: "САМЫЙ ВЫГОДНЫЙ ВАРИАНТ ⭐️",
+        aiCopilot: "Arboss AI Ассистент",
+      }
+    };
+
+    function formatMoney(amount, currency = 'so\'m') {
+      const formatted = new Intl.NumberFormat('ru-RU').format(Math.round(amount || 0));
+      return `${formatted} ${currency}`;
+    }
+
+    // --- MAIN APP COMPONENT ---
+    function App() {
+      // Storage State
+      const [data, setData] = useState(() => {
+        try {
+          const saved = localStorage.getItem(STORAGE_KEY);
+          if (saved) return JSON.parse(saved);
+        } catch (e) {
+          console.error('LocalStorage error:', e);
+        }
+        return INITIAL_DATA;
+      });
+
+      const lang = data.lang || 'uz';
+      const t = (key) => DICT[lang][key] || key;
+
+      // Sync to localStorage
+      useEffect(() => {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      }, [data]);
+
+      // UI States
+      const [posModalOpen, setPosModalOpen] = useState(false);
+      const [optimizerModalOpen, setOptimizerModalOpen] = useState(false);
+      const [activePrintOrder, setActivePrintOrder] = useState(null);
+      const [activePrintType, setActivePrintType] = useState('receipt'); // 'receipt' or 'contract'
+      const [aiOpen, setAiOpen] = useState(false);
+      const [partnerModalOpen, setPartnerModalOpen] = useState(false);
+      const [fleetModalPartnerId, setFleetModalPartnerId] = useState(null);
+
+      // Top KPI calculations
+      const freeToolsCount = data.tools.filter(t => t.status === 'bosh').length;
+      const totalTools = data.tools.length;
+      const activeRentsCount = data.orders.filter(o => o.status === 'jarayonda' || o.status === 'haydovchiga_uzatildi').length;
+      const todayTotal = data.orders
+        .filter(o => o.date.startsWith('2026-04-11'))
+        .reduce((sum, o) => sum + (o.paidSum || 0), 0) + (data.finances.todayIncome || 0);
+
+      // Print Handler with safe setTimeout
+      const handlePrint = (order, type) => {
+        setActivePrintOrder(order);
+        setActivePrintType(type);
+        setTimeout(() => {
+          window.focus();
+          window.print();
+        }, 200);
+      };
+
+      return (
+        <div className="min-h-screen flex flex-col bg-[#090d16] text-slate-100">
+          {/* TOP HEADER */}
+          <header className="border-b border-slate-800 bg-[#0f172a]/95 backdrop-blur sticky top-0 z-30 px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-600/30">
+                AR
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h1 className="text-lg font-extrabold tracking-tight text-white">{t('appName')}</h1>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-blue-900/60 text-blue-300 font-semibold border border-blue-700/50">PRO v2.5</span>
+                </div>
+                <p className="text-xs text-slate-400 flex items-center gap-1">
+                  <span>📍 {data.location}</span>
+                </p>
+              </div>
+            </div>
+
+            {/* CURRENCY & LANGUAGE & POS BUTTON */}
+            <div className="flex items-center flex-wrap gap-2">
+              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs">
+                <span className="text-slate-400">💵 1 USD =</span>
+                <input
+                  type="number"
+                  value={data.usdRate}
+                  onChange={(e) => setData({ ...data, usdRate: Number(e.target.value) || 12800 })}
+                  className="w-16 bg-transparent text-emerald-400 font-semibold focus:outline-none"
+                />
+                <span className="text-slate-400">UZS</span>
+              </div>
+
+              {/* Language Switcher */}
+              <button
+                onClick={() => setData({ ...data, lang: lang === 'uz' ? 'ru' : 'uz' })}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700 text-xs font-semibold text-slate-200 transition"
+              >
+                {lang === 'uz' ? '🇷🇺 RU' : '🇺🇿 UZ'}
+              </button>
+
+              {/* Optimizer button */}
+              <button
+                onClick={() => setOptimizerModalOpen(true)}
+                className="px-3.5 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 hover:bg-amber-500/20 text-xs font-bold flex items-center gap-1.5 transition"
+              >
+                ⚡ {t('smartOptimizer')}
+              </button>
+
+              {/* POS NEW ORDER BUTTON */}
+              <button
+                onClick={() => setPosModalOpen(true)}
+                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-600/30 flex items-center gap-2 transition"
+              >
+                <span>➕ {t('newOrderPos')}</span>
+              </button>
+            </div>
+          </header>
+
+          {/* TOP KPI CARDS BAR */}
+          <div className="px-4 py-3 bg-[#0c1222] border-b border-slate-800/80">
+            <div className="max-w-7xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-medium text-slate-400">{t('freeTools')}</p>
+                  <p className="text-lg font-bold text-emerald-400">{freeToolsCount} <span className="text-xs text-slate-400 font-normal">/ {totalTools}</span></p>
+                </div>
+                <div className="h-9 w-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">🧰</div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-medium text-slate-400">{t('activeRents')}</p>
+                  <p className="text-lg font-bold text-blue-400">{activeRentsCount}</p>
+                </div>
+                <div className="h-9 w-9 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">⏱️</div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-medium text-slate-400">{t('clientsCount')}</p>
+                  <p className="text-lg font-bold text-indigo-400">{data.customers.length}</p>
+                </div>
+                <div className="h-9 w-9 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">👥</div>
+              </div>
+
+              <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/60 flex items-center justify-between">
+                <div>
+                  <p className="text-[11px] font-medium text-slate-400">{t('todayCash')}</p>
+                  <p className="text-lg font-bold text-amber-400">{formatMoney(todayTotal)}</p>
+                </div>
+                <div className="h-9 w-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">💰</div>
+              </div>
+            </div>
+          </div>
+
+          {/* MAIN TABS NAVIGATION */}
+          <div className="bg-[#0f172a] border-b border-slate-800 px-4">
+            <div className="max-w-7xl mx-auto flex items-center overflow-x-auto gap-1 text-xs font-semibold py-1.5 scrollbar-none">
+              {[
+                { id: 'orders', label: t('tabOrders') },
+                { id: 'tools', label: t('tabTools') },
+                { id: 'intake', label: t('tabIntake') },
+                { id: 'board', label: t('tabBoard') },
+                { id: 'clients', label: t('tabClients') },
+                { id: 'partners', label: t('tabPartners') },
+                { id: 'analytics', label: t('tabAnalytics') },
+                { id: 'finance', label: t('tabFinance') },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setData({ ...data, activeTab: tab.id })}
+                  className={`px-3.5 py-2 rounded-lg whitespace-nowrap transition flex items-center gap-1.5 ${
+                    data.activeTab === tab.id
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* TAB CONTENTS */}
+          <main className="flex-1 max-w-7xl mx-auto w-full p-4 sm:p-6 space-y-6">
+            {data.activeTab === 'orders' && <OrdersTab data={data} setData={setData} t={t} onPrint={handlePrint} openPos={() => setPosModalOpen(true)} />}
+            {data.activeTab === 'tools' && <ToolsTab data={data} setData={setData} t={t} />}
+            {data.activeTab === 'intake' && <IntakeTab data={data} setData={setData} t={t} />}
+            {data.activeTab === 'board' && <LiveBoardTab data={data} setData={setData} t={t} />}
+            {data.activeTab === 'clients' && <ClientsTab data={data} setData={setData} t={t} />}
+            {data.activeTab === 'partners' && (
+              <PartnersTab
+                data={data}
+                setData={setData}
+                t={t}
+                openPartnerModal={() => setPartnerModalOpen(true)}
+                openFleetModal={(pId) => setFleetModalPartnerId(pId)}
+              />
+            )}
+            {data.activeTab === 'analytics' && <AnalyticsTab data={data} t={t} />}
+            {data.activeTab === 'finance' && <FinanceTab data={data} setData={setData} t={t} />}
+          </main>
+
+          {/* POS FAST ORDER MODAL */}
+          {posModalOpen && (
+            <PosOrderModal
+              data={data}
+              setData={setData}
+              t={t}
+              onClose={() => setPosModalOpen(false)}
+              onComplete={(createdOrder) => {
+                setPosModalOpen(false);
+                handlePrint(createdOrder, 'receipt');
+              }}
+            />
+          )}
+
+          {/* SMART OPTIMIZER MODAL (LIFT VS GRUZCHIK) */}
+          {optimizerModalOpen && (
+            <SmartOptimizerModal
+              t={t}
+              onClose={() => setOptimizerModalOpen(false)}
+              onApplyToPos={() => {
+                setOptimizerModalOpen(false);
+                setPosModalOpen(true);
+              }}
+            />
+          )}
+
+          {/* PARTNER CREATE MODAL */}
+          {partnerModalOpen && (
+            <CreatePartnerModal
+              data={data}
+              setData={setData}
+              t={t}
+              onClose={() => setPartnerModalOpen(false)}
+            />
+          )}
+
+          {/* FLEET CREATE MODAL */}
+          {fleetModalPartnerId && (
+            <CreateFleetModal
+              partnerId={fleetModalPartnerId}
+              data={data}
+              setData={setData}
+              t={t}
+              onClose={() => setFleetModalPartnerId(null)}
+            />
+          )}
+
+          {/* FLOATING AI COPILOT WIDGET */}
+          <AiCopilotWidget
+            open={aiOpen}
+            setOpen={setAiOpen}
+            data={data}
+            setData={setData}
+            t={t}
+          />
+
+          {/* PRINT CONTAINER (Only visible during print) */}
+          {activePrintOrder && (
+            <div id="print-area" className="hidden">
+              {activePrintType === 'receipt' ? (
+                <PrintReceiptView order={activePrintOrder} location={data.location} />
+              ) : (
+                <PrintContractView order={activePrintOrder} location={data.location} />
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 1. ORDERS TAB (POS / KASSA)
+    // ==========================================
+    function OrdersTab({ data, setData, t, onPrint, openPos }) {
+      const [filter, setFilter] = useState('all');
+
+      const filteredOrders = data.orders.filter(o => {
+        if (filter === 'all') return true;
+        return o.status === filter;
+      });
+
+      const updateStatus = (orderId, newStatus) => {
+        const updated = data.orders.map(o => {
+          if (o.id === orderId) {
+            return { ...o, status: newStatus };
+          }
+          return o;
+        });
+        setData({ ...data, orders: updated });
+      };
+
+      return (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-white">Buyurtmalar va Kassa jurnali</h2>
+              <p className="text-xs text-slate-400">Barcha ijara va xizmat shartnomalari monitoringi</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex bg-slate-800 p-1 rounded-lg border border-slate-700 text-xs">
+                {['all', 'yangi', 'jarayonda', 'bajarildi'].map(s => (
+                  <button
+                    key={s}
+                    onClick={() => setFilter(s)}
+                    className={`px-3 py-1 rounded-md capitalize transition ${filter === s ? 'bg-blue-600 text-white font-bold' : 'text-slate-400 hover:text-white'}`}
+                  >
+                    {s === 'all' ? 'Barchasi' : s}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={openPos}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 font-bold rounded-lg text-xs text-white shadow-md flex items-center gap-1.5"
+              >
+                + Yangi Buyurtma (POS)
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-800 bg-[#0f172a]">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-800/80 text-slate-400 uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="p-3">ID / Sana</th>
+                  <th className="p-3">Mijoz</th>
+                  <th className="p-3">Asboblar & Texnika</th>
+                  <th className="p-3">Summa / Zalog</th>
+                  <th className="p-3">Komissiya taqsimoti</th>
+                  <th className="p-3">Dispetcherlik statusi</th>
+                  <th className="p-3 text-right">Chop etish</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60">
+                {filteredOrders.map(o => (
+                  <tr key={o.id} className="hover:bg-slate-800/30 transition">
+                    <td className="p-3 font-mono font-bold text-blue-400">
+                      {o.id}
+                      <div className="text-[10px] text-slate-500 font-normal">{o.date}</div>
+                    </td>
+                    <td className="p-3">
+                      <div className="font-semibold text-white">{o.customerName}</div>
+                      <div className="text-[11px] text-slate-400">{o.customerPhone}</div>
+                      <div className="text-[10px] text-slate-500 font-mono">Pasport: {o.customerPassport}</div>
+                    </td>
+                    <td className="p-3">
+                      {o.tools && o.tools.map((t, idx) => (
+                        <div key={idx} className="text-slate-300">
+                          🔧 {t.name} <span className="text-slate-500">({t.days} kun)</span>
+                        </div>
+                      ))}
+                      {o.machinery && (
+                        <div className="mt-1 text-amber-300 font-medium bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 inline-block">
+                          🏗️ {o.machinery.title} ({o.machinery.estHours} soat)
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      <div className="font-bold text-emerald-400">{formatMoney(o.totalSum)}</div>
+                      <div className="text-[10px] text-amber-400">Garov: {formatMoney(o.depositSum)}</div>
+                    </td>
+                    <td className="p-3">
+                      <div className="text-blue-300 font-semibold">Arboss: {formatMoney(o.companyRevenue)}</div>
+                      {o.partnerRevenue > 0 && (
+                        <div className="text-slate-400 text-[11px]">Hamkor: {formatMoney(o.partnerRevenue)}</div>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      <select
+                        value={o.status}
+                        onChange={(e) => updateStatus(o.id, e.target.value)}
+                        className={`px-2.5 py-1 rounded-md text-xs font-semibold focus:outline-none border ${
+                          o.status === 'yangi' ? 'bg-amber-900/30 text-amber-400 border-amber-800' :
+                          o.status === 'haydovchiga_uzatildi' ? 'bg-sky-900/30 text-sky-400 border-sky-800' :
+                          o.status === 'jarayonda' ? 'bg-indigo-900/30 text-indigo-400 border-indigo-800' :
+                          'bg-emerald-900/30 text-emerald-400 border-emerald-800'
+                        }`}
+                      >
+                        <option value="yangi">🟡 Yangi</option>
+                        <option value="haydovchiga_uzatildi">🚚 Haydovchiga berildi</option>
+                        <option value="jarayonda">⏱️ Ish jarayonida</option>
+                        <option value="bajarildi">🟢 Bajarildi (Yopildi)</option>
+                      </select>
+                    </td>
+                    <td className="p-3 text-right space-x-1.5 whitespace-nowrap">
+                      <button
+                        onClick={() => onPrint(o, 'receipt')}
+                        className="px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium border border-slate-700"
+                        title="80mm Kassa Cheki"
+                      >
+                        🧾 Chek
+                      </button>
+                      <button
+                        onClick={() => onPrint(o, 'contract')}
+                        className="px-2.5 py-1 rounded bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 text-xs font-medium border border-blue-500/30"
+                        title="A4 Shartnoma"
+                      >
+                        📄 Shartnoma
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 2. TOOLS TAB (INVENTAR VA KATALOG)
+    // ==========================================
+    function ToolsTab({ data, setData, t }) {
+      const [newToolModal, setNewToolModal] = useState(false);
+      const [form, setForm] = useState({ name: '', cat: 'Elektr asbob', daily: 80000, deposit: 250000, buyPrice: 1500000 });
+
+      const handleAdd = (e) => {
+        e.preventDefault();
+        const id = 'T-' + (Math.floor(100 + Math.random() * 900));
+        const newTool = {
+          ...form,
+          id,
+          daily: Number(form.daily),
+          deposit: Number(form.deposit),
+          buyPrice: Number(form.buyPrice),
+          status: 'bosh',
+          totalDays: 0,
+          totalIncome: 0,
+          lastUsed: new Date().toISOString().split('T')[0]
+        };
+        setData({ ...data, tools: [newTool, ...data.tools] });
+        setNewToolModal(false);
+      };
+
+      return (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-white">Mening Asboblarim (Inventar)</h2>
+              <p className="text-xs text-slate-400">Jami asboblar: {data.tools.length} ta</p>
+            </div>
+            <button
+              onClick={() => setNewToolModal(true)}
+              className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white shadow"
+            >
+              + Asbob qo'shish
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {data.tools.map(tool => (
+              <div key={tool.id} className="p-4 rounded-xl border border-slate-800 bg-[#0f172a] flex flex-col justify-between">
+                <div>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-400">{tool.id}</span>
+                      <h3 className="font-bold text-sm text-white mt-1">{tool.name}</h3>
+                      <p className="text-xs text-slate-400">{tool.cat}</p>
+                    </div>
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${tool.status === 'bosh' ? 'bg-emerald-950/80 text-emerald-400 border border-emerald-800' : 'bg-blue-950/80 text-blue-400 border border-blue-800'}`}>
+                      {tool.status === 'bosh' ? '🟢 Bo\'sh' : '🔵 Ijarada'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 mt-4 text-xs">
+                    <div className="p-2 rounded bg-slate-800/40 border border-slate-800">
+                      <div className="text-[10px] text-slate-500">Kunlik narx</div>
+                      <div className="font-bold text-emerald-400">{formatMoney(tool.daily)}</div>
+                    </div>
+                    <div className="p-2 rounded bg-slate-800/40 border border-slate-800">
+                      <div className="text-[10px] text-slate-500">Garov (Zalog)</div>
+                      <div className="font-bold text-amber-400">{formatMoney(tool.deposit)}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+                  <span>Jami tushum: <strong className="text-slate-200">{formatMoney(tool.totalIncome)}</strong></span>
+                  <span>{tool.totalDays} kun</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* ADD TOOL MODAL */}
+          {newToolModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+              <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-md p-6">
+                <h3 className="text-base font-bold text-white mb-4">Yangi asbob kiritish</h3>
+                <form onSubmit={handleAdd} className="space-y-3 text-xs">
+                  <div>
+                    <label className="text-slate-400">Nomi va modeli</label>
+                    <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full mt-1 p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white" placeholder="Makita HR 2470" />
+                  </div>
+                  <div>
+                    <label className="text-slate-400">Kategoriya</label>
+                    <select value={form.cat} onChange={e => setForm({ ...form, cat: e.target.value })} className="w-full mt-1 p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white">
+                      <option>Elektr asbob</option>
+                      <option>Generator</option>
+                      <option>Beton texnika</option>
+                      <option>Lesa & Qolip</option>
+                      <option>Plitka asbobi</option>
+                    </select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-slate-400">Kunlik ijara (so'm)</label>
+                      <input type="number" required value={form.daily} onChange={e => setForm({ ...form, daily: e.target.value })} className="w-full mt-1 p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white" />
+                    </div>
+                    <div>
+                      <label className="text-slate-400">Garov puli (so'm)</label>
+                      <input type="number" required value={form.deposit} onChange={e => setForm({ ...form, deposit: e.target.value })} className="w-full mt-1 p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-slate-400">Xarid narxi (so'm)</label>
+                    <input type="number" required value={form.buyPrice} onChange={e => setForm({ ...form, buyPrice: e.target.value })} className="w-full mt-1 p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white" />
+                  </div>
+                  <div className="flex gap-2 justify-end pt-3">
+                    <button type="button" onClick={() => setNewToolModal(false)} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300">Bekor qilish</button>
+                    <button type="submit" className="px-4 py-2 rounded-lg bg-blue-600 text-white font-bold">Saqlash</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 3. INTAKE TAB (KIRIM VA JOYLASHTIRISH)
+    // ==========================================
+    function IntakeTab({ data, setData, t }) {
+      const rentedTools = data.tools.filter(t => t.status === 'ijarada');
+
+      const handleReturn = (toolId) => {
+        const updated = data.tools.map(t => {
+          if (t.id === toolId) return { ...t, status: 'bosh' };
+          return t;
+        });
+        setData({ ...data, tools: updated });
+        alert("Asbob muvaffaqiyatli qabul qilindi va omborga joylashtirildi!");
+      };
+
+      return (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-bold text-white">Kirim va Joylashtirish (Intake)</h2>
+            <p className="text-xs text-slate-400">Ijaradan qaytgan asboblarni tekshirish, sinovdan o'tkazish va omborga qaytarish</p>
+          </div>
+
+          <div className="p-4 rounded-xl border border-slate-800 bg-[#0f172a]">
+            <h3 className="text-sm font-bold text-amber-400 mb-3">Hozirda ijaradagi asboblar ({rentedTools.length} ta)</h3>
+            {rentedTools.length === 0 ? (
+              <p className="text-xs text-slate-500 py-4 text-center">Barcha asboblar omborda joylashgan!</p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {rentedTools.map(t => (
+                  <div key={t.id} className="p-3 rounded-lg border border-slate-800 bg-slate-800/40 flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-xs text-white">{t.name}</div>
+                      <div className="text-[10px] text-slate-400">ID: {t.id} • Garov: {formatMoney(t.deposit)}</div>
+                    </div>
+                    <button
+                      onClick={() => handleReturn(t.id)}
+                      className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center gap-1"
+                    >
+                      ✓ Qabul qilish
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 4. LIVE BOARD TAB (TABLO)
+    // ==========================================
+    function LiveBoardTab({ data, setData, t }) {
+      return (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-bold text-white">Jonli Nazorat Tablosi</h2>
+            <p className="text-xs text-slate-400">Real vaqt rejimida barcha obyektlar va buyurtmalar jarayoni</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {[
+              { key: 'yangi', title: '🟡 Yangi (Kutilmoqda)', color: 'border-amber-500/30 bg-amber-500/5' },
+              { key: 'haydovchiga_uzatildi', title: '🚚 Haydovchiga berildi', color: 'border-sky-500/30 bg-sky-500/5' },
+              { key: 'jarayonda', title: '⏱️ Ish jarayonida', color: 'border-indigo-500/30 bg-indigo-500/5' },
+              { key: 'bajarildi', title: '🟢 Bajarildi', color: 'border-emerald-500/30 bg-emerald-500/5' },
+            ].map(col => {
+              const ordersInCol = data.orders.filter(o => o.status === col.key);
+              return (
+                <div key={col.key} className={`rounded-xl border ${col.color} p-3 flex flex-col gap-2 min-h-[350px]`}>
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800 text-xs font-bold text-slate-200">
+                    <span>{col.title}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-slate-800 text-[10px] text-slate-400">{ordersInCol.length}</span>
+                  </div>
+
+                  <div className="space-y-2 overflow-y-auto flex-1">
+                    {ordersInCol.map(o => (
+                      <div key={o.id} className="p-3 rounded-lg border border-slate-800 bg-[#0f172a] shadow-sm text-xs space-y-1">
+                        <div className="flex justify-between items-center text-blue-400 font-mono font-bold text-[11px]">
+                          <span>{o.id}</span>
+                          <span className="text-emerald-400">{formatMoney(o.totalSum)}</span>
+                        </div>
+                        <div className="font-semibold text-white">{o.customerName}</div>
+                        <div className="text-[10px] text-slate-400">{o.customerPhone}</div>
+                        {o.machinery && (
+                          <div className="text-[10px] text-amber-300 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                            {o.machinery.title} ({o.machinery.location})
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 5. CLIENTS TAB (MIJOZLAR VA QORA RO'YXAT)
+    // ==========================================
+    function ClientsTab({ data, setData, t }) {
+      const [search, setSearch] = useState('');
+      const [newModal, setNewModal] = useState(false);
+      const [form, setForm] = useState({ name: '', phone: '', passport: '', jshshir: '' });
+
+      const filtered = data.customers.filter(c =>
+        c.name.toLowerCase().includes(search.toLowerCase()) ||
+        c.phone.includes(search) ||
+        c.passport.toLowerCase().includes(search.toLowerCase())
+      );
+
+      const toggleBlacklist = (cId) => {
+        const updated = data.customers.map(c => {
+          if (c.id === cId) {
+            const next = !c.blacklist;
+            return {
+              ...c,
+              blacklist: next,
+              reason: next ? 'Mijoz qora ro\'yxatga kiritildi (Admin)' : ''
+            };
+          }
+          return c;
+        });
+        setData({ ...data, customers: updated });
+      };
+
+      const handleAdd = (e) => {
+        e.preventDefault();
+        const id = 'C-' + (data.customers.length + 1);
+        const newCust = {
+          ...form,
+          id,
+          blacklist: false,
+          totalSpent: 0,
+          debt: 0,
+          ordersCount: 0
+        };
+        setData({ ...data, customers: [newCust, ...data.customers] });
+        setNewModal(false);
+      };
+
+      return (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-white">Mijozlar va Qora Ro'yxat (Blacklist)</h2>
+              <p className="text-xs text-slate-400">Doimiy mijozlar va ishonchsiz buyurtmachilar nazorati</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="Qidirish (ism, tel, pasport)..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-white w-64"
+              />
+              <button
+                onClick={() => setNewModal(true)}
+                className="px-3.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-xs font-bold text-white shadow"
+              >
+                + Mijoz qo'shish
+              </button>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-800 bg-[#0f172a]">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-800/80 text-slate-400 uppercase tracking-wider text-[10px]">
+                <tr>
+                  <th className="p-3">F.I.O.</th>
+                  <th className="p-3">Telefon</th>
+                  <th className="p-3">Pasport / JSHSHIR</th>
+                  <th className="p-3">Jami xarid (LTV)</th>
+                  <th className="p-3">Qarz</th>
+                  <th className="p-3">Holati</th>
+                  <th className="p-3 text-right">Amal</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60">
+                {filtered.map(c => (
+                  <tr key={c.id} className="hover:bg-slate-800/30 transition">
+                    <td className="p-3 font-semibold text-white">
+                      {c.name}
+                      {c.blacklist && (
+                        <div className="text-[10px] text-red-400 font-normal">⚠️ {c.reason}</div>
+                      )}
+                    </td>
+                    <td className="p-3 text-slate-300 font-mono">{c.phone}</td>
+                    <td className="p-3 font-mono text-slate-400">
+                      <div>{c.passport}</div>
+                      <div className="text-[10px] text-slate-500">{c.jshshir}</div>
+                    </td>
+                    <td className="p-3 font-bold text-blue-400">{formatMoney(c.totalSpent)}</td>
+                    <td className="p-3 font-bold text-red-400">{formatMoney(c.debt)}</td>
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${c.blacklist ? 'bg-red-950/80 text-red-400 border border-red-800' : 'bg-emerald-950/80 text-emerald-400 border border-emerald-800'}`}>
+                        {c.blacklist ? '🚫 QORA RO\'YXATDA' : '🟢 Ishonchli'}
+                      </span>
+                    </td>
+                    <td className="p-3 text-right">
+                      <button
+                        onClick={() => toggleBlacklist(c.id)}
+                        className={`px-2.5 py-1 rounded text-[11px] font-semibold border ${
+                          c.blacklist
+                            ? 'bg-emerald-600/20 text-emerald-300 border-emerald-500/30 hover:bg-emerald-600/30'
+                            : 'bg-red-600/20 text-red-300 border-red-500/30 hover:bg-red-600/30'
+                        }`}
+                      >
+                        {c.blacklist ? 'Qora ro\'yxatdan chiqarish' : 'Qora ro\'yxatga solish'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* NEW CLIENT MODAL */}
+          {newModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+              <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-md p-6">
+                <h3 className="text-base font-bold text-white mb-4">Yangi mijoz kiritish</h3>
+                <form onSubmit={handleAdd} className="space-y-3 text-xs">
+                  <div>
+                    <label className="text-slate-400">F.I.O.</label>
+                    <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full mt-1 p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white" placeholder="Rustam Karimov" />
+                  </div>
+                  <div>
+                    <label className="text-slate-400">Telefon raqam</label>
+                    <input required value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="w-full mt-1 p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white" placeholder="+998 90 123-45-67" />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-slate-400">Pasport / ID</label>
+                      <input required value={form.passport} onChange={e => setForm({ ...form, passport: e.target.value })} className="w-full mt-1 p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white" placeholder="AA 1234567" />
+                    </div>
+                    <div>
+                      <label className="text-slate-400">JSHSHIR (PINFL)</label>
+                      <input required value={form.jshshir} onChange={e => setForm({ ...form, jshshir: e.target.value })} className="w-full mt-1 p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white" placeholder="14 xonali son" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-end pt-3">
+                    <button type="button" onClick={() => setNewModal(false)} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300">Bekor qilish</button>
+                    <button type="submit" className="px-4 py-2 rounded-lg bg-blue-600 text-white font-bold">Saqlash</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 6. PARTNERS TAB (2-BOSQICHLI HAMKORLAR TIZIMI)
+    // ==========================================
+    function PartnersTab({ data, setData, t, openPartnerModal, openFleetModal }) {
+      return (
+        <div className="space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-white">2 Bosqichli Hamkorlar va Maxsus Texnikalar Parki</h2>
+              <p className="text-xs text-slate-400">1-bosqich: Tashkilot va Komissiya foizi • 2-bosqich: Mashinalar va Haydovchilar kartochkalari</p>
+            </div>
+            <button
+              onClick={openPartnerModal}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 rounded-lg text-white font-bold text-xs shadow flex items-center gap-1.5"
+            >
+              + Yangi Hamkor ochish (1-bosqich)
+            </button>
+          </div>
+
+          <div className="space-y-6">
+            {data.partners.map(partner => (
+              <div key={partner.id} className="p-5 rounded-2xl border border-slate-800 bg-[#0f172a] shadow-md space-y-4">
+                {/* 1-BOSQICH HEADER */}
+                <div className="flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-slate-800">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">
+                        {partner.category === 'kran' ? '🏗️' : partner.category === 'musor' ? '🚚' : '👷♂️'}
+                      </span>
+                      <h3 className="text-base font-extrabold text-white">{partner.name}</h3>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-950 text-indigo-300 border border-indigo-800">
+                        Komissiya: {partner.commissionPct}%
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">Tel: <span className="text-slate-200 font-mono">{partner.phone}</span> • {partner.notes}</p>
+                  </div>
+
+                  <button
+                    onClick={() => openFleetModal(partner.id)}
+                    className="px-3.5 py-1.5 rounded-lg bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 border border-blue-500/30 text-xs font-bold flex items-center gap-1"
+                  >
+                    + Mashina qo'shish (2-bosqich)
+                  </button>
+                </div>
+
+                {/* 2-BOSQICH FLEET CARDS */}
+                <div>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2.5">
+                    Texnikalar parki ({partner.fleet.length} ta birlik):
+                  </h4>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {partner.fleet.map(vehicle => (
+                      <div key={vehicle.id} className="p-3.5 rounded-xl border border-slate-800 bg-[#0c1222] flex flex-col justify-between">
+                        <div>
+                          {vehicle.image && (
+                            <img src={vehicle.image} alt={vehicle.title} className="w-full h-28 object-cover rounded-lg mb-2.5 border border-slate-800" />
+                          )}
+                          <div className="flex items-start justify-between">
+                            <h5 className="font-bold text-xs text-white">{vehicle.title}</h5>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              vehicle.status === 'bosh' ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' :
+                              vehicle.status === 'band' ? 'bg-amber-950 text-amber-400 border border-amber-800' :
+                              'bg-red-950 text-red-400 border border-red-800'
+                            }`}>
+                              {vehicle.status === 'bosh' ? '🟢 Bo\'sh' : vehicle.status === 'band' ? '🟡 Band' : '🔴 Ta\'mirda'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 mt-1">{vehicle.specs}</p>
+                        </div>
+
+                        <div className="mt-3 pt-2.5 border-t border-slate-800/80 space-y-1 text-[11px]">
+                          <div className="flex justify-between text-slate-400">
+                            <span>Tarif:</span>
+                            <span className="font-bold text-emerald-400">
+                              {vehicle.hourlyRate ? `${formatMoney(vehicle.hourlyRate)}/soat` : `${formatMoney(vehicle.tripCityRate)}/reys`}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-slate-400">
+                            <span>Haydovchi:</span>
+                            <span className="text-slate-200">{vehicle.driver}</span>
+                          </div>
+                          <div className="flex justify-between text-slate-400 font-mono">
+                            <span>Gos nomer:</span>
+                            <span className="text-amber-400">{vehicle.plate}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 7. ANALYTICS TAB (ROI, DASHBOARD, DATA-INSIGHTS)
+    // ==========================================
+    function AnalyticsTab({ data, t }) {
+      // Tools ROI calculation
+      const toolsROI = useMemo(() => {
+        return data.tools.map(tool => {
+          const roi = tool.buyPrice > 0 ? ((tool.totalIncome / tool.buyPrice) * 100).toFixed(1) : 0;
+          return { ...tool, roi: Number(roi) };
+        }).sort((a, b) => b.roi - a.roi);
+      }, [data.tools]);
+
+      // Top 5 most profitable tools
+      const topProfitable = useMemo(() => {
+        return [...data.tools].sort((a, b) => b.totalIncome - a.totalIncome).slice(0, 5);
+      }, [data.tools]);
+
+      // Zero demand tools in last 30 days
+      const idleTools = useMemo(() => {
+        return data.tools.filter(t => t.totalDays < 5 || t.lastUsed < '2026-03-15');
+      }, [data.tools]);
+
+      // Warehouse occupancy rate
+      const rentedCount = data.tools.filter(t => t.status === 'ijarada').length;
+      const occupancyRate = ((rentedCount / (data.tools.length || 1)) * 100).toFixed(1);
+
+      // Top 10 clients LTV
+      const topClients = useMemo(() => {
+        return [...data.customers].sort((a, b) => b.totalSpent - a.totalSpent).slice(0, 10);
+      }, [data.customers]);
+
+      return (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-bold text-white">Avtomatik Data-Analitika & ROI Dashboard</h2>
+            <p className="text-xs text-slate-400">Biznes rentabelligi, uskunalar o'zini oqlashi va mijozlar qiymati tahlili</p>
+          </div>
+
+          {/* AI BIZNES TAVSIYASI BANNER */}
+          <div className="p-4 rounded-xl border border-blue-500/30 bg-gradient-to-r from-blue-900/30 to-indigo-900/20 text-xs text-slate-200 flex items-start gap-3">
+            <span className="text-2xl">🤖</span>
+            <div>
+              <h4 className="font-bold text-sm text-blue-300">Arboss AI Biznes Tavsiyasi:</h4>
+              <p className="mt-1 leading-relaxed">
+                Omboringiz bandlik ko'rsatkichi <strong>{occupancyRate}%</strong>. Eng yuqori daromad keltirayotgan asbob — <strong>Honda EG5000 Generator</strong> (ROI: {toolsROI[0]?.roi}%). 
+                Bahorgi qurilish mavsumi munosabati bilan fasad lesalari va kran manipulyatorlariga talab 35% ga oshishi kutilmoqda. <strong>Plitkarez Montolit</strong> oxirgi 30 kunda ishlamagan, uni chegirma bilan aksiyaga chiqarish tavsiya etiladi.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="p-4 rounded-xl border border-slate-800 bg-[#0f172a]">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Ombor bandligi</h3>
+              <div className="text-3xl font-extrabold text-blue-400">{occupancyRate}%</div>
+              <p className="text-[11px] text-slate-500 mt-1">{rentedCount} ta ijarada / {data.tools.length} ta jami</p>
+            </div>
+
+            <div className="p-4 rounded-xl border border-slate-800 bg-[#0f172a]">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Eng yuqori ROI</h3>
+              <div className="text-3xl font-extrabold text-emerald-400">+{toolsROI[0]?.roi}%</div>
+              <p className="text-[11px] text-slate-500 mt-1">{toolsROI[0]?.name}</p>
+            </div>
+
+            <div className="p-4 rounded-xl border border-slate-800 bg-[#0f172a]">
+              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Talab past (30 kunda ishlamagan)</h3>
+              <div className="text-3xl font-extrabold text-amber-400">{idleTools.length} ta</div>
+              <p className="text-[11px] text-slate-500 mt-1">Marketing yoki aksiya zarur</p>
+            </div>
+          </div>
+
+          {/* TOP 5 PROFITABLE & IDLE TOOLS */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 rounded-xl border border-slate-800 bg-[#0f172a]">
+              <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-3">🏆 TOP-5 Eng ko'p daromad keltirgan asboblar</h3>
+              <div className="space-y-2 text-xs">
+                {topProfitable.map((t, idx) => (
+                  <div key={t.id} className="flex justify-between items-center p-2 rounded bg-slate-800/40 border border-slate-800">
+                    <div>
+                      <span className="font-bold text-slate-300">#{idx+1} {t.name}</span>
+                      <div className="text-[10px] text-slate-500">{t.totalDays} kun ishlagan</div>
+                    </div>
+                    <span className="font-bold text-emerald-400">{formatMoney(t.totalIncome)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-4 rounded-xl border border-slate-800 bg-[#0f172a]">
+              <h3 className="text-xs font-bold text-amber-400 uppercase tracking-wider mb-3">⚠️ Talab yo'q asboblar ro'yxati</h3>
+              <div className="space-y-2 text-xs">
+                {idleTools.map(t => (
+                  <div key={t.id} className="flex justify-between items-center p-2 rounded bg-slate-800/40 border border-slate-800">
+                    <div>
+                      <span className="font-bold text-slate-300">{t.name}</span>
+                      <div className="text-[10px] text-slate-500">Oxirgi marta: {t.lastUsed}</div>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-amber-950 text-amber-400 border border-amber-800">Bo'sh turibdi</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* TOP 10 CLIENTS (LTV) */}
+          <div className="p-4 rounded-xl border border-slate-800 bg-[#0f172a]">
+            <h3 className="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3">👥 TOP-10 Doimiy Mijozlar (LTV qiymati)</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-800/80 text-slate-400 uppercase text-[10px]">
+                  <tr>
+                    <th className="p-2.5">O'rin</th>
+                    <th className="p-2.5">Mijoz F.I.O</th>
+                    <th className="p-2.5">Telefon</th>
+                    <th className="p-2.5">Buyurtmalar soni</th>
+                    <th className="p-2.5 text-right">Jami xarajat (LTV)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60">
+                  {topClients.map((c, idx) => (
+                    <tr key={c.id}>
+                      <td className="p-2.5 font-bold text-slate-400">#{idx + 1}</td>
+                      <td className="p-2.5 font-semibold text-white">{c.name}</td>
+                      <td className="p-2.5 font-mono text-slate-400">{c.phone}</td>
+                      <td className="p-2.5 text-slate-300">{c.ordersCount || 1} ta</td>
+                      <td className="p-2.5 text-right font-bold text-emerald-400">{formatMoney(c.totalSpent)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // 8. FINANCE TAB (MOLIYA VA KASSA)
+    // ==========================================
+    function FinanceTab({ data, setData, t }) {
+      const totalBalance = data.finances.cashDesk + data.finances.clickPayme + data.finances.bankAccount;
+
+      return (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-bold text-white">Moliya va Kassalar Balansi</h2>
+            <p className="text-xs text-slate-400">Barcha hisob raqamlar va kassa holati</p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="p-4 rounded-xl border border-slate-800 bg-[#0f172a]">
+              <span className="text-xs text-slate-400">Asosiy Naqd Kassa</span>
+              <div className="text-xl font-bold text-emerald-400 mt-1">{formatMoney(data.finances.cashDesk)}</div>
+            </div>
+            <div className="p-4 rounded-xl border border-slate-800 bg-[#0f172a]">
+              <span className="text-xs text-slate-400">Click / Payme</span>
+              <div className="text-xl font-bold text-blue-400 mt-1">{formatMoney(data.finances.clickPayme)}</div>
+            </div>
+            <div className="p-4 rounded-xl border border-slate-800 bg-[#0f172a]">
+              <span className="text-xs text-slate-400">Bank Hisob Raqami</span>
+              <div className="text-xl font-bold text-indigo-400 mt-1">{formatMoney(data.finances.bankAccount)}</div>
+            </div>
+            <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10">
+              <span className="text-xs text-emerald-300 font-semibold">Jami Balans</span>
+              <div className="text-xl font-extrabold text-emerald-400 mt-1">{formatMoney(totalBalance)}</div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // POS ORDER MODAL (SOTUVCHILAR UCHUN 1 DAQIQALIK TEZKOR BUYURTMA)
+    // ==========================================
+    function PosOrderModal({ data, setData, t, onClose, onComplete }) {
+      // 1. Client state
+      const [clientSearch, setClientSearch] = useState('');
+      const [selectedClient, setSelectedClient] = useState(null);
+      const [newClientOpen, setNewClientOpen] = useState(false);
+      const [newClientForm, setNewClientForm] = useState({ name: '', phone: '', passport: '', jshshir: '' });
+
+      // 2. Tools state
+      const [selectedTools, setSelectedTools] = useState([]);
+      const [rentDays, setRentDays] = useState(3);
+
+      // 3. Machinery state
+      const [machineryActive, setMachineryActive] = useState(false);
+      const [selectedVehicle, setSelectedVehicle] = useState(null);
+      const [location, setLocation] = useState('');
+      const [time, setTime] = useState('2026-04-11 10:00');
+      const [estHours, setEstHours] = useState(3);
+
+      // Tools calculations
+      const toolsSum = selectedTools.reduce((s, it) => s + (it.daily * rentDays), 0);
+      const depositSum = selectedTools.reduce((s, it) => s + it.deposit, 0);
+
+      // Machinery calculations
+      let machinerySum = 0;
+      let companyMachineryPart = 0;
+      let partnerPart = 0;
+
+      if (machineryActive && selectedVehicle) {
+        if (selectedVehicle.hourlyRate) {
+          machinerySum = selectedVehicle.hourlyRate * estHours;
+        } else if (selectedVehicle.tripCityRate) {
+          machinerySum = selectedVehicle.tripCityRate * estHours; // estHours used as trips
+        }
+        const commPct = selectedVehicle.partnerCommission || 15;
+        companyMachineryPart = Math.round(machinerySum * (commPct / 100));
+        partnerPart = machinerySum - companyMachineryPart;
+      }
+
+      const totalOrderSum = toolsSum + machinerySum;
+      const totalCompanyRevenue = toolsSum + companyMachineryPart;
+
+      // Filtered clients for quick pick
+      const matchingClients = useMemo(() => {
+        if (!clientSearch.trim()) return [];
+        return data.customers.filter(c =>
+          c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
+          c.phone.includes(clientSearch)
+        ).slice(0, 5);
+      }, [clientSearch, data.customers]);
+
+      // All available fleet vehicles across partners
+      const availableVehicles = useMemo(() => {
+        const list = [];
+        data.partners.forEach(p => {
+          p.fleet.forEach(f => {
+            if (f.status === 'bosh') {
+              list.push({ ...f, partnerName: p.name, partnerCommission: p.commissionPct });
+            }
+          });
+        });
+        return list;
+      }, [data.partners]);
+
+      const handleCreateQuickClient = () => {
+        if (!newClientForm.name || !newClientForm.phone) return;
+        const newC = {
+          id: 'C-' + (data.customers.length + 1),
+          ...newClientForm,
+          blacklist: false,
+          totalSpent: 0,
+          debt: 0,
+          ordersCount: 0
+        };
+        setData({ ...data, customers: [newC, ...data.customers] });
+        setSelectedClient(newC);
+        setNewClientOpen(false);
+      };
+
+      const handleSubmitOrder = () => {
+        if (!selectedClient) {
+          alert("Iltimos, avval mijozni tanlang yoki kiriting!");
+          return;
+        }
+        if (selectedTools.length === 0 && !machineryActive) {
+          alert("Iltimos, kamida bitta asbob yoki maxsus texnika tanlang!");
+          return;
+        }
+
+        const newId = 'ORD-' + Math.floor(100 + Math.random() * 900);
+        const orderRecord = {
+          id: newId,
+          date: new Date().toISOString().replace('T', ' ').slice(0, 16),
+          customerName: selectedClient.name,
+          customerPhone: selectedClient.phone,
+          customerPassport: selectedClient.passport,
+          customerJshshir: selectedClient.jshshir,
+          tools: selectedTools.map(t => ({ name: t.name, days: rentDays, daily: t.daily, deposit: t.deposit, sum: t.daily * rentDays })),
+          machinery: machineryActive && selectedVehicle ? {
+            title: selectedVehicle.title,
+            partnerName: selectedVehicle.partnerName,
+            location,
+            time,
+            estHours,
+            hourlyRate: selectedVehicle.hourlyRate || selectedVehicle.tripCityRate,
+            machinerySum,
+            commissionPct: selectedVehicle.partnerCommission,
+            companyPart: companyMachineryPart,
+            partnerPart: partnerPart,
+          } : null,
+          totalSum: totalOrderSum,
+          depositSum,
+          paidSum: totalOrderSum,
+          debtSum: 0,
+          companyRevenue: totalCompanyRevenue,
+          partnerRevenue: partnerPart,
+          status: 'jarayonda',
+          type: selectedTools.length > 0 && machineryActive ? 'mixed' : machineryActive ? 'machinery' : 'tool'
+        };
+
+        // Update tool statuses to rented
+        const updatedTools = data.tools.map(t => {
+          if (selectedTools.find(st => st.id === t.id)) {
+            return { ...t, status: 'ijarada' };
+          }
+          return t;
+        });
+
+        setData({
+          ...data,
+          tools: updatedTools,
+          orders: [orderRecord, ...data.orders],
+        });
+
+        onComplete(orderRecord);
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-4xl p-6 my-8 space-y-6 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🛒</span>
+                <h3 className="text-base font-extrabold text-white">Sotuvchilar uchun Tezkor Buyurtma (POS)</h3>
+              </div>
+              <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-white bg-slate-800">✕</button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
+              {/* 1. MIJOZ QISMI */}
+              <div className="p-4 rounded-xl border border-slate-800 bg-[#0c1222] space-y-3">
+                <div className="flex items-center justify-between font-bold text-white">
+                  <span>1. Mijoz qismi</span>
+                  <button onClick={() => setNewClientOpen(!newClientOpen)} className="text-blue-400 hover:underline">
+                    {newClientOpen ? 'Bekor qilish' : '+ Yangi mijoz'}
+                  </button>
+                </div>
+
+                {!selectedClient && !newClientOpen && (
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Mijoz ismi yoki tel raqamini yozing..."
+                      value={clientSearch}
+                      onChange={e => setClientSearch(e.target.value)}
+                      className="w-full p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white"
+                    />
+                    {matchingClients.length > 0 && (
+                      <div className="absolute top-full left-0 right-0 mt-1 rounded-lg bg-slate-800 border border-slate-700 shadow-xl z-20 max-h-40 overflow-y-auto">
+                        {matchingClients.map(c => (
+                          <div
+                            key={c.id}
+                            onClick={() => { setSelectedClient(c); setClientSearch(''); }}
+                            className="p-2 hover:bg-slate-700 cursor-pointer flex justify-between items-center"
+                          >
+                            <span className="font-semibold text-white">{c.name}</span>
+                            <span className="text-[10px] text-slate-400">{c.phone}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {newClientOpen && (
+                  <div className="p-3 rounded-lg bg-slate-800/80 border border-slate-700 space-y-2">
+                    <input placeholder="F.I.O. *" value={newClientForm.name} onChange={e => setNewClientForm({ ...newClientForm, name: e.target.value })} className="w-full p-2 rounded bg-slate-900 border border-slate-700 text-white" />
+                    <input placeholder="Telefon raqam *" value={newClientForm.phone} onChange={e => setNewClientForm({ ...newClientForm, phone: e.target.value })} className="w-full p-2 rounded bg-slate-900 border border-slate-700 text-white" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <input placeholder="Pasport / ID" value={newClientForm.passport} onChange={e => setNewClientForm({ ...newClientForm, passport: e.target.value })} className="w-full p-2 rounded bg-slate-900 border border-slate-700 text-white" />
+                      <input placeholder="JSHSHIR" value={newClientForm.jshshir} onChange={e => setNewClientForm({ ...newClientForm, jshshir: e.target.value })} className="w-full p-2 rounded bg-slate-900 border border-slate-700 text-white" />
+                    </div>
+                    <button onClick={handleCreateQuickClient} className="w-full py-1.5 rounded bg-blue-600 text-white font-bold">Mijozni saqlash va tanlash</button>
+                  </div>
+                )}
+
+                {selectedClient && (
+                  <div className="p-3 rounded-lg bg-blue-950/40 border border-blue-800 flex justify-between items-center">
+                    <div>
+                      <div className="font-bold text-white text-sm">{selectedClient.name}</div>
+                      <div className="text-slate-400">{selectedClient.phone}</div>
+                      <div className="text-[10px] text-slate-500 font-mono">Pasport: {selectedClient.passport} • JSHSHIR: {selectedClient.jshshir}</div>
+                      {selectedClient.blacklist && (
+                        <div className="text-[10px] text-red-400 font-bold mt-1">⚠️ DIQQAT: Mijoz qora ro'yxatda!</div>
+                      )}
+                    </div>
+                    <button onClick={() => setSelectedClient(null)} className="text-red-400 hover:text-red-300">✕</button>
+                  </div>
+                )}
+
+                {/* 2. ASBOBLAR QISMI */}
+                <div className="pt-3 border-t border-slate-800 space-y-2">
+                  <div className="flex justify-between items-center font-bold text-white">
+                    <span>2. Asboblar tanlovi</span>
+                    <span className="text-[11px] text-slate-400">Muddat:</span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-400">Ijara kunlari:</span>
+                    <input
+                      type="number"
+                      min="1"
+                      value={rentDays}
+                      onChange={e => setRentDays(Math.max(1, Number(e.target.value) || 1))}
+                      className="w-16 p-1 rounded bg-slate-800 border border-slate-700 text-white font-bold text-center"
+                    />
+                    <span className="text-slate-400">kun</span>
+                  </div>
+
+                  <div className="max-h-36 overflow-y-auto space-y-1.5 pr-1">
+                    {data.tools.filter(t => t.status === 'bosh').map(tool => {
+                      const isSelected = selectedTools.some(st => st.id === tool.id);
+                      return (
+                        <div
+                          key={tool.id}
+                          onClick={() => {
+                            if (isSelected) setSelectedTools(selectedTools.filter(st => st.id !== tool.id));
+                            else setSelectedTools([...selectedTools, tool]);
+                          }}
+                          className={`p-2 rounded-lg cursor-pointer flex justify-between items-center transition border ${
+                            isSelected ? 'bg-blue-600/30 border-blue-500 text-white' : 'bg-slate-800/60 border-slate-800 text-slate-300 hover:bg-slate-800'
+                          }`}
+                        >
+                          <div>
+                            <div className="font-semibold">{tool.name}</div>
+                            <div className="text-[10px] text-slate-400">{formatMoney(tool.daily)}/kun • Zalog: {formatMoney(tool.deposit)}</div>
+                          </div>
+                          <span className="text-sm">{isSelected ? '☑️' : '◻️'}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. MAXSUS TEXNIKA & KOMISSIYA */}
+              <div className="p-4 rounded-xl border border-slate-800 bg-[#0c1222] space-y-4">
+                <div className="flex items-center justify-between font-bold text-white">
+                  <span>3. Maxsus texnika / Hamkor (Ixtiyoriy)</span>
+                  <input
+                    type="checkbox"
+                    checked={machineryActive}
+                    onChange={e => setMachineryActive(e.target.checked)}
+                    className="h-4 w-4 rounded bg-slate-800 border-slate-700"
+                  />
+                </div>
+
+                {machineryActive && (
+                  <div className="space-y-2.5 p-3 rounded-lg bg-slate-800/40 border border-slate-800">
+                    <div>
+                      <label className="text-slate-400">Bo'sh texnikani tanlang</label>
+                      <select
+                        onChange={e => {
+                          const v = availableVehicles.find(av => av.id === e.target.value);
+                          setSelectedVehicle(v || null);
+                        }}
+                        className="w-full mt-1 p-2 rounded bg-slate-800 border border-slate-700 text-white"
+                      >
+                        <option value="">-- Texnika tanlang --</option>
+                        {availableVehicles.map(v => (
+                          <option key={v.id} value={v.id}>
+                            {v.title} — {v.hourlyRate ? `${formatMoney(v.hourlyRate)}/soat` : `${formatMoney(v.tripCityRate)}/reys`} (Hamkor: {v.partnerName}, {v.partnerCommission}%)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="text-slate-400">Lokatsiya / Manzil</label>
+                      <input
+                        value={location}
+                        onChange={e => setLocation(e.target.value)}
+                        placeholder="Ko'cha, mo'ljal yoki lokatsiya..."
+                        className="w-full mt-1 p-2 rounded bg-slate-800 border border-slate-700 text-white"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-slate-400">Borish vaqti</label>
+                        <input
+                          type="datetime-local"
+                          value={time}
+                          onChange={e => setTime(e.target.value)}
+                          className="w-full mt-1 p-2 rounded bg-slate-800 border border-slate-700 text-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-slate-400">Kutilayotgan soat/reys</label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={estHours}
+                          onChange={e => setEstHours(Math.max(1, Number(e.target.value) || 1))}
+                          className="w-full mt-1 p-2 rounded bg-slate-800 border border-slate-700 text-white font-bold"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. MOLIYA & KOMISSIYA TAQSIMOTI */}
+                <div className="pt-3 border-t border-slate-800 space-y-2">
+                  <h4 className="font-bold text-white text-xs uppercase tracking-wider">4. Moliyaviy taqsimot</h4>
+
+                  <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 space-y-1.5 text-xs">
+                    <div className="flex justify-between text-slate-300">
+                      <span>Asboblar ijara summasi ({rentDays} kun):</span>
+                      <span className="font-semibold text-white">{formatMoney(toolsSum)}</span>
+                    </div>
+                    <div className="flex justify-between text-amber-400">
+                      <span>Garov (Zalog) summasi:</span>
+                      <span className="font-bold">{formatMoney(depositSum)}</span>
+                    </div>
+
+                    {machineryActive && selectedVehicle && (
+                      <>
+                        <div className="flex justify-between text-indigo-300">
+                          <span>Maxsus texnika jami:</span>
+                          <span className="font-semibold">{formatMoney(machinerySum)}</span>
+                        </div>
+                        <div className="flex justify-between text-[11px] text-slate-400 pl-2">
+                          <span>↳ Kompaniya ulushi ({selectedVehicle.partnerCommission}%):</span>
+                          <span className="text-blue-400">+{formatMoney(companyMachineryPart)}</span>
+                        </div>
+                        <div className="flex justify-between text-[11px] text-slate-400 pl-2">
+                          <span>↳ Hamkorga to'lanadigan qism:</span>
+                          <span className="text-slate-300">{formatMoney(partnerPart)}</span>
+                        </div>
+                      </>
+                    )}
+
+                    <div className="pt-2 border-t border-slate-800 flex justify-between text-sm font-extrabold text-emerald-400">
+                      <span>Mijoz to'laydigan jami summa:</span>
+                      <span>{formatMoney(totalOrderSum)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+              <div className="text-xs text-slate-400">
+                Dispetcherlik statusi: <span className="text-blue-400 font-semibold">⏱️ Ish jarayonida</span> bo'lib ochiladi
+              </div>
+              <div className="flex gap-2">
+                <button onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 font-semibold text-xs">Bekor qilish</button>
+                <button onClick={handleSubmitOrder} className="px-5 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-lg shadow-emerald-600/30">
+                  Buyurtmani tasdiqlash va Chek chiqarish
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // AQLLI OPTIMIZER KALKULYATOR (SMART LIFT VS GRUZCHIK)
+    // ==========================================
+    function SmartOptimizerModal({ t, onClose, onApplyToPos }) {
+      const [weight, setWeight] = useState(800);
+      const [floor, setFloor] = useState(5);
+      const [hasLift, setHasLift] = useState(false);
+      const [oversized, setOversized] = useState(true);
+
+      // FORMULALAR:
+      // Gruzchiklar: 100 000 + (kg * 50) + (kg * qavat * (lift ? 20 : 80)) + Gabarit (50 000).
+      const gruzchikPrice = 100000 + (weight * 50) + (weight * floor * (hasLift ? 20 : 80)) + (oversized ? 50000 : 0);
+
+      // Fasad lifti: agar qavat >= 3 va kg >= 600 bo'lsa, lift (350 000/soat) + 2 ishchi (150 000) = 500 000 so'm.
+      const isLiftEligible = floor >= 3 && weight >= 600;
+      const liftPrice = isLiftEligible ? 500000 : 650000;
+
+      const optimalOption = liftPrice < gruzchikPrice ? 'lift' : 'gruzchik';
+      const savedMoney = Math.abs(gruzchikPrice - liftPrice);
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-2xl p-6 space-y-6 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">⚡</span>
+                <h3 className="text-base font-extrabold text-white">Aqlli Optimizer Kalkulyator (Fasad Lift vs Gruzchik)</h3>
+              </div>
+              <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-white bg-slate-800">✕</button>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <label className="text-slate-400">{t('weightKg')}</label>
+                <input
+                  type="number"
+                  value={weight}
+                  onChange={e => setWeight(Number(e.target.value) || 0)}
+                  className="w-full mt-1 p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white font-bold"
+                />
+              </div>
+              <div>
+                <label className="text-slate-400">{t('floor')}</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="25"
+                  value={floor}
+                  onChange={e => setFloor(Number(e.target.value) || 1)}
+                  className="w-full mt-1 p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white font-bold"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="liftCheck"
+                  checked={hasLift}
+                  onChange={e => setHasLift(e.target.checked)}
+                  className="h-4 w-4 rounded bg-slate-800 border-slate-700"
+                />
+                <label htmlFor="liftCheck" className="text-slate-300 font-medium cursor-pointer">{t('hasCargoLift')}</label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="oversizedCheck"
+                  checked={oversized}
+                  onChange={e => setOversized(e.target.checked)}
+                  className="h-4 w-4 rounded bg-slate-800 border-slate-700"
+                />
+                <label htmlFor="oversizedCheck" className="text-slate-300 font-medium cursor-pointer">{t('oversized')}</label>
+              </div>
+            </div>
+
+            {/* RESULTS COMPARISON CARDS */}
+            <div className="grid grid-cols-2 gap-4 text-xs">
+              {/* GRUZCHIK CARD */}
+              <div className={`p-4 rounded-xl border relative ${
+                optimalOption === 'gruzchik'
+                  ? 'border-emerald-500 bg-emerald-950/20'
+                  : 'border-slate-800 bg-[#0c1222]'
+              }`}>
+                {optimalOption === 'gruzchik' && (
+                  <span className="absolute -top-3 left-4 px-2 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-extrabold">
+                    ENG OPTIMAL VARIANT ⭐️
+                  </span>
+                )}
+                <h4 className="font-bold text-white text-sm mb-2">👷♂️ Gruzchiklar Brigadasi</h4>
+                <div className="text-xl font-extrabold text-emerald-400">{formatMoney(gruzchikPrice)}</div>
+                <p className="text-[11px] text-slate-400 mt-2">
+                  Taxminiy vaqt: ~3-4 soat<br />
+                  Ishchilar: {Math.ceil(weight / 250) + 1} nafar
+                </p>
+              </div>
+
+              {/* FASAD LIFT CARD */}
+              <div className={`p-4 rounded-xl border relative ${
+                optimalOption === 'lift'
+                  ? 'border-emerald-500 bg-emerald-950/20'
+                  : 'border-slate-800 bg-[#0c1222]'
+              }`}>
+                {optimalOption === 'lift' && (
+                  <span className="absolute -top-3 left-4 px-2 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-extrabold">
+                    ENG OPTIMAL VARIANT ⭐️
+                  </span>
+                )}
+                <h4 className="font-bold text-white text-sm mb-2">🏗️ Fasad Avtolifti</h4>
+                <div className="text-xl font-extrabold text-emerald-400">{formatMoney(liftPrice)}</div>
+                <p className="text-[11px] text-slate-400 mt-2">
+                  Taxminiy vaqt: ~45 daqiqa<br />
+                  Tejalgan mablag': <strong className="text-emerald-300">{formatMoney(savedMoney)}</strong>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+              <button onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300 text-xs">Yopish</button>
+              <button onClick={onApplyToPos} className="px-4 py-2 rounded-lg bg-blue-600 text-white font-bold text-xs">
+                Buyurtmaga qo'llash (POS ga o'tish)
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // CREATE PARTNER MODAL (1-BOSQICH)
+    // ==========================================
+    function CreatePartnerModal({ data, setData, t, onClose }) {
+      const [form, setForm] = useState({ name: '', phone: '', category: 'kran', commissionPct: 15, notes: '' });
+
+      const handleSave = (e) => {
+        e.preventDefault();
+        const id = 'P-' + (data.partners.length + 1);
+        const newPartner = {
+          ...form,
+          id,
+          commissionPct: Number(form.commissionPct) || 15,
+          fleet: []
+        };
+        setData({ ...data, partners: [...data.partners, newPartner] });
+        onClose();
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-md p-6">
+            <h3 className="text-base font-bold text-white mb-4">1-bosqich: Yangi Hamkor ochish</h3>
+            <form onSubmit={handleSave} className="space-y-3 text-xs">
+              <div>
+                <label className="text-slate-400">Tashkilot / Egasi nomi</label>
+                <input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full mt-1 p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white" placeholder="OOO Toshkent SpetsMash" />
+              </div>
+              <div>
+                <label className="text-slate-400">Telefon raqam</label>
+                <input required value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className="w-full mt-1 p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white" placeholder="+998 90 123-45-67" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-slate-400">Kategoriya</label>
+                  <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} className="w-full mt-1 p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white">
+                    <option value="kran">🏗️ Kran va maxsus texnikalar</option>
+                    <option value="musor">🚚 Chiqindi tashish (Musor)</option>
+                    <option value="gruzchik">👷♂️ Gruzchik brigadasi</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-slate-400">Komissiya foizi (%)</label>
+                  <input type="number" min="0" max="100" required value={form.commissionPct} onChange={e => setForm({ ...form, commissionPct: e.target.value })} className="w-full mt-1 p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-white font-bold" />
+                </div>
+              </div>
+              <div>
+                <label className="text-slate-400">Izoh</label>
+                <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="w-full mt-1 p-2 rounded-lg bg-slate-800 border border-slate-700 text-white" placeholder="Texnikalar turi, shartlar..." />
+              </div>
+              <div className="flex gap-2 justify-end pt-3">
+                <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300">Bekor qilish</button>
+                <button type="submit" className="px-4 py-2 rounded-lg bg-indigo-600 text-white font-bold">Saqlash</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // CREATE FLEET MODAL (2-BOSQICH)
+    // ==========================================
+    function CreateFleetModal({ partnerId, data, setData, t, onClose }) {
+      const partner = data.partners.find(p => p.id === partnerId);
+      const [type, setType] = useState('avtokran');
+      const [form, setForm] = useState({
+        title: '',
+        specs: '',
+        hourlyRate: 300000,
+        tripCityRate: 500000,
+        driver: '',
+        plate: '',
+        image: ''
+      });
+
+      const handleSave = (e) => {
+        e.preventDefault();
+        const fId = 'F-' + (Math.floor(100 + Math.random() * 900));
+        const newFleet = {
+          id: fId,
+          type,
+          title: form.title,
+          specs: form.specs,
+          hourlyRate: Number(form.hourlyRate) || 0,
+          tripCityRate: Number(form.tripCityRate) || 0,
+          driver: form.driver,
+          plate: form.plate,
+          status: 'bosh',
+          image: form.image
+        };
+
+        const updatedPartners = data.partners.map(p => {
+          if (p.id === partnerId) {
+            return { ...p, fleet: [...p.fleet, newFleet] };
+          }
+          return p;
+        });
+
+        setData({ ...data, partners: updatedPartners });
+        onClose();
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-lg p-6">
+            <h3 className="text-base font-bold text-white mb-1">2-bosqich: Mashina qo'shish</h3>
+            <p className="text-xs text-slate-400 mb-4">Hamkor: <strong className="text-indigo-400">{partner?.name}</strong></p>
+
+            <form onSubmit={handleSave} className="space-y-3 text-xs">
+              <div>
+                <label className="text-slate-400">Texnika turi</label>
+                <select value={type} onChange={e => setType(e.target.value)} className="w-full mt-1 p-2 rounded bg-slate-800 border border-slate-700 text-white">
+                  <option value="avtokran">Avtokran (Tonnaj, strela, soatlik)</option>
+                  <option value="manipulyator">Manipulyator (Bort, strela)</option>
+                  <option value="avtolift">Avtolift / Fasad lifti (Balandlik)</option>
+                  <option value="musor">Musor mashina (Kuzov hajmi, reys narxi)</option>
+                  <option value="gruzchik">Gruzchiklar brigadasi</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-slate-400">Modeli va nomi</label>
+                <input required value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} className="w-full mt-1 p-2 rounded bg-slate-800 border border-slate-700 text-white" placeholder="Avtokran Kamaz 25t" />
+              </div>
+
+              <div>
+                <label className="text-slate-400">Xarakteristikasi (specs)</label>
+                <input required value={form.specs} onChange={e => setForm({ ...form, specs: e.target.value })} className="w-full mt-1 p-2 rounded bg-slate-800 border border-slate-700 text-white" placeholder="Strela: 28m, Min: 3 soat" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-slate-400">Soatlik narx (so'm)</label>
+                  <input type="number" value={form.hourlyRate} onChange={e => setForm({ ...form, hourlyRate: e.target.value })} className="w-full mt-1 p-2 rounded bg-slate-800 border border-slate-700 text-white" />
+                </div>
+                <div>
+                  <label className="text-slate-400">Reys narxi (shahar ichi)</label>
+                  <input type="number" value={form.tripCityRate} onChange={e => setForm({ ...form, tripCityRate: e.target.value })} className="w-full mt-1 p-2 rounded bg-slate-800 border border-slate-700 text-white" />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-slate-400">Haydovchi ismi va tel</label>
+                  <input required value={form.driver} onChange={e => setForm({ ...form, driver: e.target.value })} className="w-full mt-1 p-2 rounded bg-slate-800 border border-slate-700 text-white" placeholder="Alisher (+998 90 123-45-67)" />
+                </div>
+                <div>
+                  <label className="text-slate-400">Gos nomer</label>
+                  <input required value={form.plate} onChange={e => setForm({ ...form, plate: e.target.value })} className="w-full mt-1 p-2 rounded bg-slate-800 border border-slate-700 text-white" placeholder="01 777 AAA" />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-400">Mashina rasmi URL (ixtiyoriy)</label>
+                <input value={form.image} onChange={e => setForm({ ...form, image: e.target.value })} className="w-full mt-1 p-2 rounded bg-slate-800 border border-slate-700 text-white" placeholder="https://..." />
+              </div>
+
+              <div className="flex gap-2 justify-end pt-3">
+                <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg bg-slate-800 text-slate-300">Bekor qilish</button>
+                <button type="submit" className="px-4 py-2 rounded-lg bg-blue-600 text-white font-bold">Qo'shish</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // PRINT VIEWS (@media print)
+    // ==========================================
+    function PrintReceiptView({ order, location }) {
+      return (
+        <div style={{ maxWidth: '80mm', margin: '0 auto', padding: '10px', fontFamily: 'monospace', fontSize: '12px' }}>
+          <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: 'bold', margin: '0' }}>ARBOSS RENT</h2>
+            <p style={{ margin: '2px 0' }}>Qurilish uskunalari ijarasi</p>
+            <p style={{ fontSize: '10px', margin: '2px 0' }}>📍 {location}</p>
+            <p style={{ fontSize: '10px', margin: '2px 0' }}>Tel: +998 (71) 200-50-46</p>
+            <hr style={{ borderTop: '1px dashed #000', margin: '8px 0' }} />
+          </div>
+
+          <div style={{ marginBottom: '8px' }}>
+            <div>Buyurtma: <strong>#{order.id}</strong></div>
+            <div>Sana: {order.date}</div>
+            <div>Mijoz: {order.customerName}</div>
+            <div>Tel: {order.customerPhone}</div>
+          </div>
+
+          <hr style={{ borderTop: '1px dashed #000', margin: '8px 0' }} />
+
+          <div style={{ marginBottom: '8px' }}>
+            <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>IJARA ASBOBLARI:</div>
+            {order.tools && order.tools.map((t, idx) => (
+              <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                <span>{t.name} ({t.days}k)</span>
+                <span>{formatMoney(t.sum)}</span>
+              </div>
+            ))}
+            {order.machinery && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                <span>{order.machinery.title} ({order.machinery.estHours}s)</span>
+                <span>{formatMoney(order.machinery.machinerySum)}</span>
+              </div>
+            )}
+          </div>
+
+          <hr style={{ borderTop: '1px dashed #000', margin: '8px 0' }} />
+
+          <div style={{ marginBottom: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>JAMI TO'LOV:</span>
+              <strong>{formatMoney(order.totalSum)}</strong>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span>GAROV (ZALOG):</span>
+              <strong>{formatMoney(order.depositSum)}</strong>
+            </div>
+          </div>
+
+          <hr style={{ borderTop: '1px dashed #000', margin: '8px 0' }} />
+
+          <div style={{ textAlign: 'center', fontSize: '10px', marginTop: '10px' }}>
+            <p>Uskunani o'z vaqtida va soz holatda qaytarish shart.</p>
+            <p>Xaridingiz uchun rahmat!</p>
+          </div>
+        </div>
+      );
+    }
+
+    function PrintContractView({ order, location }) {
+      return (
+        <div style={{ maxWidth: '210mm', margin: '0 auto', padding: '20mm', fontFamily: 'Arial, sans-serif', fontSize: '12px', lineHeight: '1.5' }}>
+          <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+            <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0' }}>QURILISH USKUNALARI IJARASI VA QABUL QILISH-TOPSHIRISH SHARTNOMASI</h1>
+            <p style={{ margin: '5px 0' }}>Shartnoma № {order.id} • Sana: {order.date}</p>
+          </div>
+
+          <p>
+            Bir tomondan <strong>"ARBOSS RENT" MCHJ</strong> (keyingi o'rinlarda "Ijaraga beruvchi", Manzil: {location}), ikkinchi tomondan fuqaro <strong>{order.customerName}</strong> (Pasport: {order.customerPassport}, JSHSHIR: {order.customerJshshir}, Tel: {order.customerPhone}, keyingi o'rinlarda "Ijarachi"), quyidagilar haqida mazkur shartnomani tuzdilar:
+          </p>
+
+          <h3 style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '15px', marginBottom: '5px' }}>1. SHARTNOMA PREDMETI VA ASBOBLAR RO'YXATI</h3>
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '15px' }} border="1">
+            <thead>
+              <tr style={{ background: '#f2f2f2' }}>
+                <th style={{ padding: '6px' }}>№</th>
+                <th style={{ padding: '6px' }}>Uskuna nomi</th>
+                <th style={{ padding: '6px' }}>Muddat (kun)</th>
+                <th style={{ padding: '6px' }}>Kunlik narx</th>
+                <th style={{ padding: '6px' }}>Garov summasi</th>
+                <th style={{ padding: '6px' }}>Jami ijara</th>
+              </tr>
+            </thead>
+            <tbody>
+              {order.tools && order.tools.map((t, idx) => (
+                <tr key={idx}>
+                  <td style={{ padding: '6px', textAlign: 'center' }}>{idx + 1}</td>
+                  <td style={{ padding: '6px' }}>{t.name}</td>
+                  <td style={{ padding: '6px', textAlign: 'center' }}>{t.days}</td>
+                  <td style={{ padding: '6px' }}>{formatMoney(t.daily)}</td>
+                  <td style={{ padding: '6px' }}>{formatMoney(t.deposit)}</td>
+                  <td style={{ padding: '6px', fontWeight: 'bold' }}>{formatMoney(t.sum)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          <h3 style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '15px', marginBottom: '5px' }}>2. HISOB-KITOB VA GAROV SHARTLARI</h3>
+          <p>
+            2.1. Jami ijara haqi: <strong>{formatMoney(order.totalSum)}</strong> to'liq to'landi.<br />
+            2.2. Garov sifatida topshirilgan summa: <strong>{formatMoney(order.depositSum)}</strong>. Uskuna butun va soz holda qaytarilgach garov to'liq qaytariladi.<br />
+            2.3. Ijarachi uskunani muddatidan kechiktirsa, har bir o'tgan kun uchun 2 karra kunlik ijara haqi hisoblanadi.
+          </p>
+
+          <h3 style={{ fontSize: '13px', fontWeight: 'bold', marginTop: '15px', marginBottom: '5px' }}>3. TOMONLARNING JAVOBGARLIGI VA IMZOLARI</h3>
+          <p>
+            Ijarachi uskunaning texnik xavfsizlik qoidalariga rioya qilishi, unga shikast yetkazmasligi va uchinchi shaxslarga bermaslik majburiyatini oladi.
+          </p>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '40px' }}>
+            <div style={{ width: '45%' }}>
+              <p><strong>Ijaraga beruvchi:</strong><br />"ARBOSS RENT" MCHJ<br />Manzil: {location}<br /><br />Imzo: _______________ (M.O'.)</p>
+            </div>
+            <div style={{ width: '45%' }}>
+              <p><strong>Ijarachi:</strong><br />{order.customerName}<br />Pasport: {order.customerPassport}<br /><br />Imzo: _______________</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ==========================================
+    // FLOATING AI COPILOT WIDGET
+    // ==========================================
+    function AiCopilotWidget({ open, setOpen, data, setData, t }) {
+      const [messages, setMessages] = useState([
+        { role: 'assistant', text: 'Assalomu alaykum! Men Arboss AI assistentiman. "Ali akaga 2 kunga perforator berdim" deb yozsangiz, darhol buyurtma yarataman yoki ombor holatini tahlil qilaman.' }
+      ]);
+      const [input, setInput] = useState('');
+      const [apiKeyModal, setApiKeyModal] = useState(false);
+      const [apiKey, setApiKey] = useState(data.geminiApiKey || '');
+
+      const handleSend = () => {
+        if (!input.trim()) return;
+        const userText = input.trim();
+        setInput('');
+
+        const newMessages = [...messages, { role: 'user', text: userText }];
+        setMessages(newMessages);
+
+        // Simple Natural Language parser for quick orders
+        const lower = userText.toLowerCase();
+        if (lower.includes('perforator') && (lower.includes('berdim') || lower.includes('yarat'))) {
+          setTimeout(() => {
+            setMessages(prev => [
+              ...prev,
+              { role: 'assistant', text: 'Buyruq qabul qilindi! Perforator Bosch uchun 2 kunlik ijara buyurtmasi tayyorlandi va ro\'yxatga kiritildi.' }
+            ]);
+          }, 600);
+        } else if (lower.includes('bo\'sh') || lower.includes('nimalar bor')) {
+          const freeTools = data.tools.filter(t => t.status === 'bosh').map(t => t.name).join(', ');
+          setTimeout(() => {
+            setMessages(prev => [
+              ...prev,
+              { role: 'assistant', text: `Hozirda omborda bo'sh uskunalar: ${freeTools || 'Barcha uskunalar band!'}` }
+            ]);
+          }, 600);
+        } else {
+          setTimeout(() => {
+            setMessages(prev => [
+              ...prev,
+              { role: 'assistant', text: 'Xabaringiz tahlil qilindi. Qanday asbob yoki texnika kerakligini aytsangiz, tezkor hisoblab beraman.' }
+            ]);
+          }, 600);
+        }
+      };
+
+      const saveKey = () => {
+        setData({ ...data, geminiApiKey: apiKey.trim() });
+        setApiKeyModal(false);
+        alert("API kalit muvaffaqiyatli saqlandi!");
+      };
+
+      return (
+        <>
+          {/* FLOATING TRIGGER BUTTON */}
+          <div className="fixed bottom-5 right-5 z-40">
+            <button
+              onClick={() => setOpen(!open)}
+              className="h-14 w-14 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center text-2xl shadow-xl shadow-blue-600/40 hover:scale-105 transition"
+            >
+              🤖
+            </button>
+          </div>
+
+          {/* CHAT WINDOW */}
+          {open && (
+            <div className="fixed bottom-22 right-5 z-40 w-96 max-w-[calc(100vw-2.5rem)] rounded-2xl border border-slate-800 bg-[#0f172a] shadow-2xl flex flex-col h-[480px]">
+              <div className="p-3.5 border-b border-slate-800 flex items-center justify-between bg-slate-900/60 rounded-t-2xl">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">🤖</span>
+                  <div>
+                    <h4 className="font-bold text-xs text-white">Arboss AI Copilot</h4>
+                    <p className="text-[10px] text-emerald-400">● Onlayn (Agent rejimida)</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <button onClick={() => setApiKeyModal(true)} title="API Kalit sozlamasi" className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-slate-800">⚙️</button>
+                  <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white text-xs px-2 py-1 rounded bg-slate-800">✕</button>
+                </div>
+              </div>
+
+              <div className="flex-1 p-3.5 overflow-y-auto space-y-2.5 text-xs">
+                {messages.map((m, idx) => (
+                  <div key={idx} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`p-3 rounded-2xl max-w-[85%] leading-relaxed ${
+                      m.role === 'user' ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-200 border border-slate-700/60'
+                    }`}>
+                      {m.text}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="p-3 border-t border-slate-800 flex gap-2">
+                <input
+                  type="text"
+                  placeholder="AI ga buyruq bering..."
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSend()}
+                  className="flex-1 p-2.5 rounded-xl bg-slate-800 border border-slate-700 text-xs text-white focus:outline-none"
+                />
+                <button
+                  onClick={handleSend}
+                  className="px-3.5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs"
+                >
+                  ➤
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* API KEY SETTINGS MODAL */}
+          {apiKeyModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+              <div className="bg-[#0f172a] border border-slate-800 rounded-2xl w-full max-w-md p-6 space-y-4">
+                <h3 className="text-sm font-bold text-white">Google Gemini API Kalit sozlamasi</h3>
+                <p className="text-xs text-slate-400">
+                  Yangi "AQ." yoki eski "AIza..." formatidagi har qanday Gemini API kalitingizni kiriting:
+                </p>
+                <input
+                  type="password"
+                  placeholder="AQ.xxxx yoki AIzaxxxx..."
+                  value={apiKey}
+                  onChange={e => setApiKey(e.target.value)}
+                  className="w-full p-2.5 rounded-lg bg-slate-800 border border-slate-700 text-xs text-white"
+                />
+                <div className="flex justify-end gap-2 pt-2">
+                  <button onClick={() => setApiKeyModal(false)} className="px-4 py-2 rounded-lg bg-slate-800 text-xs text-slate-300">Bekor qilish</button>
+                  <button onClick={saveKey} className="px-4 py-2 rounded-lg bg-blue-600 text-xs font-bold text-white">Saqlash</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      );
+    }
+
+    // Render the App into DOM
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
