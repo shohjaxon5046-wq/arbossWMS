@@ -5,6 +5,7 @@ import { monitoring } from '@/lib/monitoring';
 interface Props {
   children: ReactNode;
   fallbackTitle?: string;
+  resetKey?: any;
 }
 
 interface State {
@@ -30,6 +31,12 @@ export class ErrorBoundary extends Component<Props, State> {
       level: 'error',
       componentStack: errorInfo.componentStack,
     });
+  }
+
+  componentDidUpdate(prevProps: Props) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false, error: null, reported: false });
+    }
   }
 
   handleRetry = () => {

@@ -1,4 +1,4 @@
-import { useState, useEffect, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { AppProvider } from '@/contexts/AppContext';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { LoginPage } from '@/pages/LoginPage';
@@ -48,12 +48,29 @@ function AppContent() {
   const { session, staff, loading } = useAuth();
   const [currentPage, setCurrentPage] = useState<PageId>('dashboard');
   const [seed, setSeed] = useState<SearchTarget & { nonce: number } | null>(null);
+  const prevRoleRef = useRef<string | undefined>(undefined);
 
+  // Sync default starting page on role change or initial load
   useEffect(() => {
     if (staff) {
-      setCurrentPage(staff.role === 'seller' ? 'my-orders' : 'dashboard');
+      if (prevRoleRef.current === undefined) {
+        setCurrentPage(staff.role === 'seller' ? 'my-orders' : 'dashboard');
+      } else if (prevRoleRef.current !== staff.role) {
+        if (!canAccessPage(staff.role, currentPage)) {
+          setCurrentPage(staff.role === 'seller' ? 'my-orders' : 'dashboard');
+        }
+      }
+      prevRoleRef.current = staff.role;
     }
-  }, [staff]);
+  }, [staff, currentPage]);
+
+  // Reset scroll container position when switching pages
+  useEffect(() => {
+    const main = document.querySelector('main');
+    if (main) {
+      main.scrollTo({ top: 0, behavior: 'instant' });
+    }
+  }, [currentPage]);
 
   const goToPage = (page: PageId) => {
     setSeed(null);
@@ -104,6 +121,8 @@ function AppContent() {
         return <CrmPage initialSearch={initialSearch} />;
       case 'orders':
         return <OrdersPage initialSearch={initialSearch} />;
+      case 'new-order':
+        return <OrdersPage initialSearch={initialSearch} />;
       case 'partners':
         return <PartnersPage initialSearch={initialSearch} />;
       case 'finance':
@@ -121,9 +140,19 @@ function AppContent() {
 
   return (
     <Layout currentPage={currentPage} onPageChange={goToPage} onSearchSelect={handleSearchSelect}>
-      <ErrorBoundary fallbackTitle="Sahifani ko'rsatishda xatolik yuz berdi">
+      <ErrorBoundary
+        key={currentPage}
+        resetKey={currentPage}
+        fallbackTitle="Sahifani ko'rsatishda xatolik yuz berdi"
+      >
         <Suspense fallback={<PageLoadingFallback />}>
-          <div key={`${currentPage}-${seed?.nonce ?? 0}`}>{renderPage()}</div>
+          <div
+            key={`${currentPage}-${seed?.nonce ?? 0}`}
+            className="w-full min-h-full"
+            data-page={currentPage}
+          >
+            {renderPage()}
+          </div>
         </Suspense>
       </ErrorBoundary>
     </Layout>
