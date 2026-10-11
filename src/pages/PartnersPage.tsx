@@ -116,32 +116,32 @@ export function PartnersPage({ initialSearch }: { initialSearch?: string }) {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {filteredPartners.map(p => (
-              <div key={p.id} className="card card-hover p-5">
+              <div key={p.id} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md hover:border-slate-300">
                 <div className="flex items-start justify-between">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                    <Truck className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+                    <Truck className="h-5 w-5" />
                   </div>
                   <div className="flex gap-1">
-                    <button onClick={() => openEditPartner(p)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-blue-600 dark:hover:bg-slate-800">
+                    <button onClick={() => openEditPartner(p)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-blue-600">
                       <Pencil className="h-4 w-4" />
                     </button>
-                    <button onClick={() => setDeletePartner(p)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20">
+                    <button onClick={() => setDeletePartner(p)} className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600">
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
-                <h3 className="mt-3 text-base font-semibold text-slate-900 dark:text-slate-100">{p.company_name}</h3>
-                <p className="text-xs text-slate-400">{categoryOptions.find(c => c.value === p.service_category)?.label || p.service_category}</p>
+                <h3 className="mt-3 text-base font-semibold text-slate-900">{p.company_name}</h3>
+                <p className="text-xs text-slate-500">{categoryOptions.find(c => c.value === p.service_category)?.label || p.service_category}</p>
                 <div className="mt-3 space-y-1">
-                  <p className="text-sm text-slate-600 dark:text-slate-300">{normalizePhone(p.phone_primary) || '—'}</p>
-                  {p.phone_secondary && <p className="text-sm text-slate-400">{normalizePhone(p.phone_secondary)}</p>}
+                  <p className="text-sm font-medium text-slate-700">{normalizePhone(p.phone_primary) || '—'}</p>
+                  {p.phone_secondary && <p className="text-xs text-slate-500">{normalizePhone(p.phone_secondary)}</p>}
                 </div>
-                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
-                  <span className="flex items-center gap-1">
-                    <span className={`h-2 w-2 rounded-full ${p.is_available ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                    <span className="text-xs font-medium">{p.is_available ? t('available2') : t('busy')}</span>
+                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
+                  <span className="flex items-center gap-1.5">
+                    <span className={`h-2.5 w-2.5 rounded-full ${p.is_available ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                    <span className="text-xs font-semibold text-slate-700">{p.is_available ? t('available2') : t('busy')}</span>
                   </span>
-                  <span className="badge bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">★ {p.rating || 5}</span>
+                  <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-0.5 text-xs font-bold text-amber-700">★ {p.rating || 5}</span>
                 </div>
               </div>
             ))}

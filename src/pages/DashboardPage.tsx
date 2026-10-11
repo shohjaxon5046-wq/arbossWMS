@@ -264,9 +264,9 @@ export function DashboardPage({ onPageChange }: { onPageChange: (page: PageId) =
               <Package className="h-6 w-6 text-teal-600 dark:text-teal-400" />
               <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{t('partners')}</span>
             </button>
-            <button onClick={() => onPageChange('ai')} className="flex flex-col items-center gap-2 rounded-xl border border-slate-200 p-4 text-center transition-all hover:border-blue-300 hover:bg-blue-50 dark:border-slate-700 dark:hover:border-blue-700 dark:hover:bg-blue-900/10">
-              <TrendingUp className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-              <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{t('aiCopilot')}</span>
+            <button onClick={() => onPageChange('catalog')} className="flex flex-col items-center gap-2 rounded-xl border border-slate-200 p-4 text-center transition-all hover:border-blue-300 hover:bg-blue-50">
+              <Package className="h-6 w-6 text-blue-600" />
+              <span className="text-xs font-semibold text-slate-700">{t('catalog')}</span>
             </button>
           </div>
         </div>

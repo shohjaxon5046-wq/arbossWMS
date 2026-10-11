@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 import type { Lang } from '@/lib/i18n';
 import { t as translate, type TranslationKey } from '@/lib/i18n';
 
-type Theme = 'light' | 'dark';
+type Theme = 'light';
 
 interface AppContextValue {
   lang: Lang;
@@ -21,27 +21,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return (saved === 'ru' || saved === 'uz') ? saved : 'uz';
   });
 
-  const [theme, setThemeState] = useState<Theme>(() => {
-    const saved = localStorage.getItem('erp_theme');
-    return saved === 'light' ? 'light' : 'dark';
-  });
+  const [theme] = useState<Theme>('light');
 
   useEffect(() => {
     localStorage.setItem('erp_lang', lang);
   }, [lang]);
 
   useEffect(() => {
-    localStorage.setItem('erp_theme', theme);
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [theme]);
+    localStorage.setItem('erp_theme', 'light');
+    document.documentElement.classList.remove('dark');
+  }, []);
 
   const setLang = (l: Lang) => setLangState(l);
-  const setTheme = (th: Theme) => setThemeState(th);
-  const toggleTheme = () => setThemeState(prev => prev === 'dark' ? 'light' : 'dark');
+  const setTheme = () => {};
+  const toggleTheme = () => {};
   const t = (key: TranslationKey) => translate(lang, key);
 
   return (

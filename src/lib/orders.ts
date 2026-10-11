@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import type { TranslationKey } from '@/lib/i18n';
-import type { Order, OrderItem, OrderPayment, ProductItem, ProductModel, ServiceOrder, UserRole } from '@/types';
+import type { Customer, Order, OrderItem, OrderPayment, ProductItem, ProductModel, ServiceOrder, UserRole } from '@/types';
 
 export const ITEM_QR_PREFIX = 'ITM:';
 export const MODEL_QR_PREFIX = 'MDL:';
@@ -102,6 +102,8 @@ export interface OrderBundle {
   payments: OrderPayment[];
   partnerNames: Record<string, string>;
   passport: string;
+  customer?: Customer | null;
+  models?: Record<string, ProductModel>;
 }
 
 export async function loadOrderBundle(orderId: string): Promise<OrderBundle> {
@@ -117,26 +119,35 @@ export async function loadOrderBundle(orderId: string): Promise<OrderBundle> {
   if (servicesRes.error) throw servicesRes.error;
   if (paymentsRes.error) throw paymentsRes.error;
   const order = orderRes.data as Order;
+  const items = (itemsRes.data || []) as OrderItem[];
   const services = (servicesRes.data || []) as ServiceOrder[];
 
   const partnerIds = [...new Set(services.map(s => s.assigned_partner_id).filter((x): x is string => !!x))];
-  const [partnersRes, customerRes] = await Promise.all([
+  const modelIds = [...new Set(items.map(it => it.model_id).filter((x): x is string => !!x))];
+
+  const [partnersRes, customerRes, modelsRes] = await Promise.all([
     partnerIds.length
       ? supabase.from('erp_service_partners').select('id, company_name').in('id', partnerIds)
       : Promise.resolve({ data: [] as { id: string; company_name: string }[], error: null }),
     order.customer_id
-      ? supabase.from('erp_customers').select('passport_series, passport_number').eq('id', order.customer_id).maybeSingle()
+      ? supabase.from('erp_customers').select('*').eq('id', order.customer_id).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
+    modelIds.length
+      ? supabase.from('erp_product_models').select('*').in('id', modelIds)
+      : Promise.resolve({ data: [] as ProductModel[], error: null }),
   ]);
-  const passport = customerRes.data ? `${customerRes.data.passport_series ?? ''} ${customerRes.data.passport_number ?? ''}`.trim() : '';
+  const customer = customerRes.data as Customer | null;
+  const passport = customer ? `${customer.passport_series ?? ''} ${customer.passport_number ?? ''}`.trim() : '';
 
   return {
     order,
-    items: (itemsRes.data || []) as OrderItem[],
+    items,
     services,
     payments: (paymentsRes.data || []) as OrderPayment[],
     partnerNames: Object.fromEntries((partnersRes.data || []).map((p: any) => [p.id, p.company_name])),
     passport,
+    customer,
+    models: Object.fromEntries((modelsRes.data || []).map((m: any) => [m.id, m as ProductModel])),
   };
 }
 

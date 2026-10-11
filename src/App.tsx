@@ -20,9 +20,7 @@ const PartnersPage = lazy(() => import('@/pages/PartnersPage').then(m => ({ defa
 const FinancePage = lazy(() => import('@/pages/FinancePage').then(m => ({ default: m.FinancePage })));
 const StaffPage = lazy(() => import('@/pages/StaffPage').then(m => ({ default: m.StaffPage })));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
-const AiCopilotPage = lazy(() => import('@/pages/AiCopilotPage').then(m => ({ default: m.AiCopilotPage })));
 const MyOrdersPage = lazy(() => import('@/pages/MyOrdersPage').then(m => ({ default: m.MyOrdersPage })));
-const AdminLogisticsPage = lazy(() => import('@/components/logistics/AdminLogisticsPage').then(m => ({ default: m.AdminLogisticsPage })));
 
 function PageLoadingFallback() {
   return (
@@ -114,10 +112,6 @@ function AppContent() {
         return <StaffPage />;
       case 'settings':
         return <SettingsPage />;
-      case 'ai':
-        return <AiCopilotPage />;
-      case 'logistics':
-        return <AdminLogisticsPage />;
       case 'my-orders':
         return <MyOrdersPage />;
       default:

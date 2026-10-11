@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CheckCircle2, CreditCard, Loader2, PackageCheck, Printer, Truck, XCircle } from 'lucide-react';
+import { CheckCircle2, CreditCard, FileText, Loader2, PackageCheck, Printer, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useApp } from '@/contexts/AppContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -7,10 +7,10 @@ import { formatCurrency, formatDate, getStatusColor } from '@/lib/format';
 import { Modal, ConfirmDialog } from '@/components/ui/Modal';
 import { LoadingSpinner } from '@/components/ui/States';
 import { FieldLabel, InlineNotice, type Notice } from '@/components/inbound/InlineNotice';
-import { loadOrderBundle, ordersErrorKey, SERVICE_CATEGORIES, type OrderBundle } from '@/lib/orders';
-import { printOrderReceipt } from '@/lib/receipt';
+import { loadOrderBundle, ordersErrorKey, type OrderBundle } from '@/lib/orders';
+import { printCashReceipt80mm, printContractA4 } from '@/lib/receipt';
 import type { TranslationKey } from '@/lib/i18n';
-import type { CashRegister, OrderStatus, ServiceOrderStatus } from '@/types';
+import type { CashRegister, OrderStatus } from '@/types';
 
 interface Props {
   orderId: string | null;
@@ -18,13 +18,10 @@ interface Props {
   onChanged: () => void;
 }
 
-const SERVICE_STATUSES: ServiceOrderStatus[] = ['yangi', 'hamkor_qabul_qildi', 'hamkor_yolda', 'bajarilmoqda', 'bajarildi', 'bekor'];
-
 export function OrderDetailModal({ orderId, onClose, onChanged }: Props) {
   const { t } = useApp();
   const { staff } = useAuth();
   const canChangeStatus = staff?.role === 'admin' || staff?.role === 'manager' || staff?.role === 'warehouse';
-  const canManageServices = staff?.role === 'admin' || staff?.role === 'manager';
   const [bundle, setBundle] = useState<OrderBundle | null>(null);
   const [registers, setRegisters] = useState<CashRegister[]>([]);
   const [loading, setLoading] = useState(false);
@@ -91,17 +88,26 @@ export function OrderDetailModal({ orderId, onClose, onChanged }: Props) {
     setPayOpen(false);
   };
 
-  const print = async () => {
+  const [printing, setPrinting] = useState(false);
+
+  const handlePrint = async (type: '80mm' | 'a4') => {
     if (!bundle) return;
-    try { await printOrderReceipt(bundle, t); } catch (err) { setNotice({ kind: 'error', text: t(ordersErrorKey(err)) }); }
+    setPrinting(true);
+    try {
+      if (type === '80mm') {
+        await printCashReceipt80mm(bundle, t);
+      } else {
+        await printContractA4(bundle, t);
+      }
+    } catch (err) {
+      setNotice({ kind: 'error', text: t(ordersErrorKey(err)) });
+    } finally {
+      setPrinting(false);
+    }
   };
 
   const order = bundle?.order;
   const open = order && order.status !== 'yakunlandi' && order.status !== 'bekor';
-  const catLabel = (v: string) => {
-    const c = SERVICE_CATEGORIES.find(x => x.value === v);
-    return c ? t(c.labelKey) : v;
-  };
 
   return (
     <Modal open={!!orderId} onClose={onClose} title={order?.order_number || ''} size="xl">
@@ -133,13 +139,13 @@ export function OrderDetailModal({ orderId, onClose, onChanged }: Props) {
 
           {bundle.items.length > 0 && (
             <div>
-              <h4 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{t('ordItemsSection')}</h4>
-              <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
+              <h4 className="mb-2 text-sm font-semibold text-slate-900">{t('ordItemsSection')}</h4>
+              <div className="divide-y divide-slate-100 rounded-xl border border-slate-200">
                 {bundle.items.map(oi => (
                   <div key={oi.id} className="flex items-center gap-3 px-3 py-2.5">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{oi.model_name}</p>
-                      <p className="text-xs text-slate-400">
+                      <p className="truncate text-sm font-medium text-slate-900">{oi.model_name}</p>
+                      <p className="text-xs text-slate-500">
                         <span className="font-mono">{oi.serial_number}</span> · {oi.rent_days} {t('ordDays')} × {formatCurrency(oi.daily_price)}
                         {Number(oi.discount_pct) > 0 && ` · −${Number(oi.discount_pct)}%`}
                       </p>
@@ -148,42 +154,9 @@ export function OrderDetailModal({ orderId, onClose, onChanged }: Props) {
                       <span className="hidden text-xs text-slate-400 sm:inline">{t('ordDepreciationApplied')}: {formatCurrency(oi.depreciation_applied)}</span>
                     )}
                     {oi.return_status === 'qaytarildi' && <PackageCheck className="h-4 w-4 text-emerald-500" />}
-                    <span className="text-sm font-semibold tabular-nums">{formatCurrency(oi.line_total)}</span>
+                    <span className="text-sm font-semibold tabular-nums text-slate-900">{formatCurrency(oi.line_total)}</span>
                   </div>
                 ))}
-              </div>
-            </div>
-          )}
-
-          {bundle.services.length > 0 && (
-            <div>
-              <h4 className="mb-2 text-sm font-semibold text-slate-900 dark:text-slate-100">{t('ordServicesSection')}</h4>
-              <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 dark:divide-slate-800 dark:border-slate-700">
-                {bundle.services.map(s => {
-                  const closed = s.order_status === 'bajarildi' || s.order_status === 'bekor';
-                  return (
-                    <div key={s.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
-                      <Truck className="h-4 w-4 flex-shrink-0 text-slate-400" />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">{catLabel(s.service_category)}{s.service_details && <span className="font-normal text-slate-500"> · {s.service_details}</span>}</p>
-                        <p className="truncate text-xs text-slate-400">
-                          {(s.assigned_partner_id && bundle.partnerNames[s.assigned_partner_id]) || t('ordNoPartner')}
-                          {s.scheduled_time && ` · ${s.scheduled_time}`}{s.address && ` · ${s.address}`}
-                        </p>
-                      </div>
-                      {closed ? (
-                        <span className={`badge ${getStatusColor(s.order_status)}`}>{t(`svcStatus_${s.order_status}` as TranslationKey)}</span>
-                      ) : canManageServices ? (
-                        <select value={s.order_status} disabled={busy}
-                          onChange={e => run(() => supabase.rpc('erp_set_service_status', { p_service_id: s.id, p_status: e.target.value }))}
-                          className="input-field !w-auto !py-1 text-xs">
-                          {SERVICE_STATUSES.map(st => <option key={st} value={st}>{t(`svcStatus_${st}` as TranslationKey)}</option>)}
-                        </select>
-                      ) : null}
-                      <span className="text-sm font-semibold tabular-nums">{formatCurrency(s.customer_total_price)}</span>
-                    </div>
-                  );
-                })}
               </div>
             </div>
           )}
@@ -235,8 +208,27 @@ export function OrderDetailModal({ orderId, onClose, onChanged }: Props) {
             </div>
           )}
 
-          <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4 dark:border-slate-800">
-            <button onClick={print} className="btn-secondary"><Printer className="h-4 w-4" /> {t('ordPrintReceipt')}</button>
+          <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+            <button
+              type="button"
+              onClick={() => handlePrint('80mm')}
+              disabled={printing}
+              className="btn-secondary"
+              title="80mm termoprinter uchun oddiy kassa cheki"
+            >
+              <Printer className="h-4 w-4 text-blue-600" />
+              <span>🧾 Kassa cheki (80mm)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => handlePrint('a4')}
+              disabled={printing}
+              className="btn-secondary"
+              title="A4 formatdagi yuridik ijara shartnomasi va dalolatnoma"
+            >
+              <FileText className="h-4 w-4 text-indigo-600" />
+              <span>📄 Shartnoma (A4)</span>
+            </button>
             {Number(order.debt_amount) > 0 && order.status !== 'bekor' && !payOpen && (
               <button onClick={() => setPayOpen(true)} className="btn-primary"><CreditCard className="h-4 w-4" /> {t('receivePayment')}</button>
             )}

@@ -89,8 +89,6 @@ const PAGE_REQUIRED_PERMISSIONS: Partial<Record<PageId, AppPermission>> = {
   finance: 'finance:view',
   staff: 'staff:manage',
   settings: 'settings:view',
-  logistics: 'logistics:view',
-  ai: 'ai:access',
 };
 
 /**
