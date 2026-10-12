@@ -8,6 +8,9 @@
     },
     "shaders": {
       "enabled": true
+    },
+    "cloude": {
+      "enabled": true
     }
   }
 }
